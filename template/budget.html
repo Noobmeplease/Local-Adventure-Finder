@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Budget Estimation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-top: 10px;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .btn:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <h1>Estimate Your Trip Budget</h1>
+    <form method="POST">
+        <label>Transport: $<input type="number" name="transport" required></label><br>
+        <label>Accommodation: $<input type="number" name="accommodation" required></label><br>
+        <label>Food: $<input type="number" name="food" required></label><br>
+        <label>Gear: $<input type="number" name="gear" required></label><br>
+        <button type="submit">Calculate</button>
+    </form>
+
+    {% if total_cost %}
+        <h2>Total Estimated Cost: ${{ total_cost }}</h2>
+        <a href="{{ url_for('download_pdf') }}" class="btn">Download Budget PDF</a>
+    {% endif %}
+
+    <br><br>
+    <a href="{{ url_for('checklist') }}">Go to Packing Checklist</a>
+    <br><br>
+    <a href="{{ url_for('checklist_pdf') }}" class="btn">Download Checklist PDF</a>
+</body>
+</html>
+```

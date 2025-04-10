@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Packing Checklist{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <h2 class="mb-4">Packing Checklist Generator</h2>
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label">Adventure Type</label>
+                <select name="adventure_type" class="form-select" required>
+                    <option value="camping">Camping</option>
+                    <option value="hiking">Hiking</option>
+                    <option value="rock_climbing">Rock Climbing</option>
+                    <option value="kayaking">Kayaking</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Duration (days)</label>
+                <input type="number" name="duration" class="form-control" min="1" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Season</label>
+                <select name="season" class="form-select" required>
+                    <option value="summer">Summer</option>
+                    <option value="winter">Winter</option>
+                    <option value="spring">Spring</option>
+                    <option value="fall">Fall</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Generate Checklist</button>
+        </form>
+
+        {% if checklist %}
+        <div class="mt-4">
+            <h3>Your Packing Checklist</h3>
+            {% for category, items in checklist.items() %}
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0">{{ category }}</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        {% for item in items %}
+                        <li class="list-group-item">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="item{{ loop.index }}">
+                                <label class="form-check-label" for="item{{ loop.index }}">
+                                    {{ item }}
+                                </label>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

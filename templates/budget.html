@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Budget Estimation{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 offset-md-3">
+        <h2 class="mb-4">Trip Budget Estimation</h2>
+        <form method="POST">
+            <div class="mb-3">
+                <label class="form-label">Adventure Type</label>
+                <select name="adventure_type" class="form-select" required>
+                    <option value="camping">Camping</option>
+                    <option value="hiking">Hiking</option>
+                    <option value="rock_climbing">Rock Climbing</option>
+                    <option value="kayaking">Kayaking</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Location</label>
+                <input type="text" name="location" class="form-control" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Duration (days)</label>
+                <input type="number" name="duration" class="form-control" min="1" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Number of People</label>
+                <input type="number" name="people" class="form-control" min="1" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Calculate Budget</button>
+        </form>
+
+        {% if estimated_budget %}
+        <div class="mt-4">
+            <h3>Estimated Budget Breakdown</h3>
+            <div class="card">
+                <div class="card-body">
+                    <p><strong>Transportation:</strong> ${{ estimated_budget.transportation }}</p>
+                    <p><strong>Accommodation:</strong> ${{ estimated_budget.accommodation }}</p>
+                    <p><strong>Equipment:</strong> ${{ estimated_budget.equipment }}</p>
+                    <p><strong>Food & Supplies:</strong> ${{ estimated_budget.food }}</p>
+                    <hr>
+                    <p><strong>Total Estimated Cost:</strong> ${{ estimated_budget.total }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
