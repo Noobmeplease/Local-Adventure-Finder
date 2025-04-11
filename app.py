@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, flash, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 import os
 from datetime import datetime
 from typing import Dict
+from utils import login_required
 
 try:
     from fpdf import FPDF
@@ -12,147 +13,98 @@ except ImportError:
     pip.main(['install', 'fpdf2'])
     from fpdf import FPDF
 
-app = Flask(__name__, instance_relative_config=True)
+# Import models
+from models import db, User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest
 
-# Database configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'adventure.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = 'dev'
+def create_app():
+    app = Flask(__name__, instance_relative_config=True)
 
-# Initialize SQLAlchemy
-db = SQLAlchemy(app)
+    # Database configuration
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'adventure.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SECRET_KEY'] = 'dev'
 
-# Database Models
-class User(db.Model):
-    __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    trips = db.relationship('Trip', backref='user', lazy=True)
-    preferences = db.relationship('UserPreference', backref='user', uselist=False)
+    # Initialize SQLAlchemy
+    db.init_app(app)
 
-class UserPreference(db.Model):
-    __tablename__ = 'user_preferences'
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), primary_key=True)
-    preferred_categories = db.Column(db.Text)
-    difficulty_level = db.Column(db.Integer)
-    budget_range = db.Column(db.Text)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    # Register blueprints
+    from auth import auth as auth_blueprint
+    app.register_blueprint(auth_blueprint)
 
-class AdventureLocation(db.Model):
-    __tablename__ = 'adventure_locations'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)
-    category = db.Column(db.String(50), nullable=False)
-    difficulty = db.Column(db.Integer)
-    latitude = db.Column(db.Float)
-    longitude = db.Column(db.Float)
-    weather_info = db.Column(db.Text)
-    average_rating = db.Column(db.Float, default=0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Ensure instance folder exists
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
 
-class Trip(db.Model):
-    __tablename__ = 'trips'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    location_id = db.Column(db.Integer, db.ForeignKey('adventure_locations.id'), nullable=False)
-    start_date = db.Column(db.Date, nullable=False)
-    end_date = db.Column(db.Date, nullable=False)
-    budget_estimate = db.Column(db.Float)
-    shared_publicly = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    return app
 
-class Budget(db.Model):
-    __tablename__ = 'budgets'
-    id = db.Column(db.Integer, primary_key=True)
-    transport = db.Column(db.Integer)
-    accommodation = db.Column(db.Integer)
-    food = db.Column(db.Integer)
-    gear = db.Column(db.Integer)
-    total = db.Column(db.Integer)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-class PackingItem(db.Model):
-    __tablename__ = 'packing_items'
-    id = db.Column(db.Integer, primary_key=True)
-    adventure_type = db.Column(db.String(50), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    category = db.Column(db.String(50))
-    is_default = db.Column(db.Boolean, default=True)
-
-# Ensure instance folder exists
-try:
-    os.makedirs(app.instance_path)
-except OSError:
-    pass
+app = create_app()
 
 # Initialize database and insert default items
 def init_db():
     with app.app_context():
-        # Create static folder if it doesn't exist
-        if not os.path.exists(app.static_folder):
-            os.makedirs(app.static_folder)
+        # Drop all tables
+        db.drop_all()
+        
+        # Create tables with updated schema
         db.create_all()
         
-        # Insert default packing items if none exist
-        if PackingItem.query.count() == 0:
-            default_items = {
-                'camping': ['Tent', 'Sleeping Bag', 'Camping Stove', 'Cooler'],
-                'hiking': ['Hiking Boots', 'Backpack', 'Trekking Poles', 'Trail Map'],
-                'rock_climbing': ['Climbing Shoes', 'Harness', 'Ropes', 'Chalk Bag'],
-                'kayaking': ['Life Jacket', 'Dry Bags', 'Paddle', 'Spray Skirt']
-            }
-            
-            for adventure_type, items in default_items.items():
-                for item_name in items:
-                    item = PackingItem(
-                        adventure_type=adventure_type,
-                        name=item_name,
-                        category='Activity Specific'
-                    )
-                    db.session.add(item)
-            db.session.commit()
+        # Add default packing items
+        default_items = {
+            'camping': ['Tent', 'Sleeping Bag', 'Camping Stove', 'Cooler'],
+            'hiking': ['Hiking Boots', 'Backpack', 'Trekking Poles', 'Trail Map'],
+            'rock_climbing': ['Climbing Shoes', 'Harness', 'Ropes', 'Chalk Bag'],
+            'kayaking': ['Life Jacket', 'Dry Bags', 'Paddle', 'Spray Skirt']
+        }
+        
+        for activity, items in default_items.items():
+            for item in items:
+                packing_item = PackingItem(
+                    adventure_type=activity,
+                    name=item,
+                    is_default=True
+                )
+                db.session.add(packing_item)
+        
+        db.session.commit()
+        print("Database initialized successfully!")
 
 def calculate_budget(adventure_type: str, location: str, duration: int, people: int) -> Dict:
     base_costs = {
-        'camping': {'transportation': 50, 'accommodation': 30, 'equipment': 100, 'food': 40},
-        'hiking': {'transportation': 40, 'accommodation': 50, 'equipment': 80, 'food': 35},
-        'rock_climbing': {'transportation': 60, 'accommodation': 60, 'equipment': 150, 'food': 40},
-        'kayaking': {'transportation': 70, 'accommodation': 55, 'equipment': 120, 'food': 45}
+        'camping': {'transport': 50, 'accommodation': 20, 'food': 30, 'gear': 100},
+        'hiking': {'transport': 40, 'accommodation': 0, 'food': 25, 'gear': 80},
+        'rock_climbing': {'transport': 60, 'accommodation': 40, 'food': 35, 'gear': 150},
+        'kayaking': {'transport': 70, 'accommodation': 30, 'food': 35, 'gear': 120}
     }
-
-    costs = base_costs[adventure_type]
-    budget = {
-        'transportation': costs['transportation'] * people,
+    
+    costs = base_costs.get(adventure_type, base_costs['camping'])
+    total = sum(cost * duration * people for cost in costs.values())
+    
+    return {
+        'transportation': costs['transport'] * people,
         'accommodation': costs['accommodation'] * duration * people,
-        'equipment': costs['equipment'] * people,
-        'food': costs['food'] * duration * people
+        'food': costs['food'] * duration * people,
+        'equipment': costs['gear'] * people,
+        'total': total
     }
-    budget['total'] = sum(budget.values())
-    return budget
 
 def generate_packing_list(adventure_type: str, duration: int, season: str) -> Dict:
     base_items = {
-        'Essentials': [
-            'First Aid Kit',
-            'Water Bottle',
-            'Flashlight/Headlamp',
-            'Multi-tool',
-            'Navigation Tools'
-        ],
         'Clothing': [
-            f'{duration * 2} pairs of socks',
-            f'{duration} shirts',
-            'Rain Jacket',
-            'Hat'
+            'Socks',
+            'Underwear',
+            'T-shirts',
+            'Long-sleeve shirts',
+            'Pants/Shorts',
+            'Rain jacket'
         ],
-        'Personal Items': [
-            'Toiletries',
+        'Personal Care': [
+            'Toothbrush',
+            'Toothpaste',
             'Sunscreen',
+            'First Aid Kit',
+            'Hand Sanitizer',
             'Insect Repellent',
             'Personal Medications'
         ]
@@ -174,6 +126,7 @@ def generate_packing_list(adventure_type: str, duration: int, season: str) -> Di
     return checklist
 
 @app.route('/')
+@login_required
 def index():
     return render_template('base.html')
 
@@ -271,6 +224,81 @@ def checklist_pdf():
     pdf.output(filepath)
     return send_file(filepath, as_attachment=True)
 
+@app.route('/buddy-finder', methods=['GET'])
+@login_required
+def buddy_finder():
+    # Get current user's interests
+    user_interests = UserInterest.query.filter_by(user_id=session['user_id']).all()
+    user_activities = [interest.activity_type for interest in user_interests]
+    user_experience = user_interests[0].experience_level if user_interests else None
+    current_user = User.query.get(session['user_id'])
+    
+    # Find matching buddies
+    matching_buddies = []
+    if user_interests:
+        # Get all users except current user
+        potential_buddies = User.query.filter(User.id != session['user_id']).all()
+        
+        for buddy in potential_buddies:
+            buddy_interests = [interest.activity_type for interest in buddy.interests]
+            # Check for common interests
+            common_interests = set(user_activities) & set(buddy_interests)
+            if common_interests:
+                matching_buddies.append({
+                    'id': buddy.id,
+                    'username': buddy.username,
+                    'interests': ', '.join(buddy_interests),
+                    'experience_level': next((i.experience_level for i in buddy.interests if i.activity_type in common_interests), 'Not specified'),
+                    'bio': buddy.bio or 'No bio available'
+                })
+    
+    return render_template('buddy_finder.html',
+                         matching_buddies=matching_buddies,
+                         user_interests=user_activities,
+                         user_experience=user_experience,
+                         current_user=current_user)
+
+@app.route('/update-interests', methods=['POST'])
+@login_required
+def update_interests():
+    try:
+        # Delete existing interests
+        UserInterest.query.filter_by(user_id=session['user_id']).delete()
+        
+        # Get form data
+        interests = request.form.getlist('interests')
+        experience_level = request.form.get('experience_level')
+        bio = request.form.get('bio')
+        
+        # Update user bio
+        user = User.query.get(session['user_id'])
+        user.bio = bio
+        
+        # Add new interests
+        for activity in interests:
+            interest = UserInterest(
+                user_id=session['user_id'],
+                activity_type=activity,
+                experience_level=experience_level
+            )
+            db.session.add(interest)
+        
+        db.session.commit()
+        flash('Profile updated successfully!')
+    except Exception as e:
+        db.session.rollback()
+        flash('An error occurred while updating your profile.')
+    
+    return redirect(url_for('buddy_finder'))
+
+@app.route('/send-buddy-request/<int:buddy_id>')
+@login_required
+def send_buddy_request(buddy_id):
+    # Here you would implement the logic to send a connection request
+    flash('Connection request sent!')
+    return redirect(url_for('buddy_finder'))
+
 if __name__ == '__main__':
-    init_db()
+    with app.app_context():
+        init_db()
     app.run(debug=True)

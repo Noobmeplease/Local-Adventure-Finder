@@ -14,13 +14,35 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if 'user_id' in session %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('buddy_finder') }}">Find Adventure Buddies</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('budget') }}">Budget Estimation</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('packing') }}">Packing Checklist</a>
+                    </li>
+                    {% endif %}
+                </ul>
                 <ul class="navbar-nav">
+                    {% if 'user_id' in session %}
                     <li class="nav-item">
-                        <a class="nav-link" href="/budget">Budget Estimation</a>
+                        <span class="nav-link">Welcome, {{ session['username'] }}!</span>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/packing">Packing Checklist</a>
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">Logout</a>
                     </li>
+                    {% else %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.login') }}">Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.register') }}">Register</a>
+                    </li>
+                    {% endif %}
                 </ul>
             </div>
         </div>

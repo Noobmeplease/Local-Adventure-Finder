@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <!-- Profile Section -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h3>My Adventure Profile</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('update_interests') }}">
+                        <div class="form-group mb-3">
+                            <label>Bio</label>
+                            <textarea class="form-control" name="bio" rows="3" placeholder="Tell others about yourself...">{{ current_user.bio }}</textarea>
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label>Adventure Interests</label>
+                            {% for activity in ['hiking', 'camping', 'biking', 'rock_climbing', 'kayaking'] %}
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" name="interests" value="{{ activity }}"
+                                    {% if user_interests and activity in user_interests %}checked{% endif %}>
+                                <label class="form-check-label">{{ activity|title }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="form-group mb-3">
+                            <label for="experience_level">Experience Level</label>
+                            <select class="form-control" id="experience_level" name="experience_level">
+                                {% for level in ['beginner', 'intermediate', 'advanced'] %}
+                                <option value="{{ level }}" {% if user_experience == level %}selected{% endif %}>
+                                    {{ level|title }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">Update Profile</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Matching Buddies Section -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Matching Adventure Buddies</h3>
+                </div>
+                <div class="card-body">
+                    {% if matching_buddies %}
+                        {% for buddy in matching_buddies %}
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">{{ buddy.username }}</h5>
+                                <p class="card-text">
+                                    <strong>Bio:</strong> {{ buddy.bio }}<br>
+                                    <strong>Interests:</strong> {{ buddy.interests }}<br>
+                                    <strong>Experience:</strong> {{ buddy.experience_level }}
+                                </p>
+                                <button class="btn btn-sm btn-primary" onclick="window.location.href='{{ url_for('send_buddy_request', buddy_id=buddy.id) }}'">
+                                    Connect
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-info">
+                            {% if not user_interests %}
+                                Please update your profile with your interests to find matching buddies!
+                            {% else %}
+                                No matching buddies found at the moment. Check back later!
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
