@@ -1,7 +1,7 @@
-from flask import Blueprint, render_template, request, flash, redirect, url_for, session
+from flask import Blueprint, render_template, request, flash, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import login_user, logout_user, login_required
 from models import db, User
-from utils import login_required
 
 auth = Blueprint('auth', __name__)
 
@@ -68,16 +68,16 @@ def login():
             flash('Invalid username or password')
             return render_template('login.html')
 
-        # Set user session
-        session['user_id'] = user.id
-        session['username'] = user.username
+        # Log in the user
+        login_user(user)
         flash(f'Welcome back, {user.username}!')
         return redirect(url_for('index'))
 
     return render_template('login.html')
 
 @auth.route('/logout')
+@login_required
 def logout():
-    session.clear()
+    logout_user()
     flash('You have been logged out.')
     return redirect(url_for('auth.login'))

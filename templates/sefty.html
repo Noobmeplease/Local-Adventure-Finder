@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Safety & Emergency - Local Adventure Finder</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <style>
+        .safety-icon {
+            font-size: 2.5rem;
+            color: #dc3545;
+        }
+        .emergency-card {
+            transition: transform 0.3s;
+        }
+        .emergency-card:hover {
+            transform: translateY(-5px);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-danger">
+        <div class="container">
+            <a class="navbar-brand" href="#">Local Adventure Finder</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="#">Home</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="#">Safety</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#">Adventures</a></li>
+                    <li class="nav-item"><a class="nav-link" href="#">Contact</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container my-5">
+        <div class="row mb-5">
+            <div class="col-12 text-center">
+                <h1 class="display-4">Your Safety is Our Priority</h1>
+                <p class="lead">Stay safe while exploring adventures with our comprehensive safety features</p>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-6 col-lg-4">
+                <div class="card emergency-card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-telephone-fill safety-icon mb-3"></i>
+                        <h3 class="card-title">Emergency Contacts</h3>
+                        <p class="card-text">Quick access to emergency services and local authorities</p>
+                        <button class="btn btn-danger">View Emergency Numbers</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="card emergency-card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-shield-fill-check safety-icon mb-3"></i>
+                        <h3 class="card-title">Safety Guidelines</h3>
+                        <p class="card-text">Essential safety tips and protocols for adventurers</p>
+                        <button class="btn btn-danger">Read Guidelines</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 col-lg-4">
+                <div class="card emergency-card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-bandaid-fill safety-icon mb-3"></i>
+                        <h3 class="card-title">First Aid Guide</h3>
+                        <p class="card-text">Interactive first aid instructions and supply checklist</p>
+                        <button class="btn btn-danger">View Guide</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="card emergency-card h-100">
+                    <div class="card-body text-center">
+                        <i class="bi bi-check2-square safety-icon mb-3"></i>
+                        <h3 class="card-title">Safety Checklist</h3>
+                        <p class="card-text">Pre-adventure equipment and document verification</p>
+                        <button class="btn btn-danger">Open Checklist</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-5">
+            <div class="col-12">
+                <div class="alert alert-danger" role="alert">
+                    <h4 class="alert-heading"><i class="bi bi-exclamation-triangle-fill"></i> Emergency SOS</h4>
+                    <p class="mb-0">In case of emergency, press the SOS button below to alert emergency services and your designated contacts.</p>
+                    <hr>
+                    <button class="btn btn-lg btn-danger"><i class="bi bi-alarm-fill"></i> SOS Emergency Alert</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bg-dark text-white py-4 mt-5">
+        <div class="container text-center">
+            <p class="mb-0">© 2025 Local Adventure Finder - Your Safety Companion</p>
+            <p class="mb-0">Emergency Hotline: 911</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Emergency Contacts
+        const emergencyContacts = {
+            police: '911',
+            ambulance: '911',
+            fire: '911',
+            poison_control: '1-800-222-1222',
+            mountain_rescue: '1-800-xxx-xxxx'
+        };
+
+        function viewEmergencyNumbers() {
+            const contactList = Object.entries(emergencyContacts)
+                .map(([service, number]) => `${service.replace('_', ' ').toUpperCase()}: ${number}`)
+                .join('\n');
+            alert('Emergency Numbers:\n\n' + contactList);
+        }
+
+
+
+        // First Aid Guide
+        const firstAidGuide = {
+            'Cuts and Scrapes': ['Clean the wound with soap and water',
+                               'Apply antibiotic ointment',
+                               'Cover with sterile bandage'],
+            'Sprains': ['Rest the injured area',
+                        'Apply ice pack',
+                        'Compress with elastic bandage',
+                        'Elevate above heart level'],
+            'Heat Exhaustion': ['Move to cool area',
+                               'Drink water',
+                               'Remove excess clothing',
+                               'Apply cool, wet cloths']
+        };
+
+        function viewFirstAidGuide() {
+            const guide = Object.entries(firstAidGuide)
+                .map(([condition, steps]) => 
+                    `${condition}:\n${steps.map((step, i) => `  ${i + 1}. ${step}`).join('\n')}`)
+                .join('\n\n');
+            alert('First Aid Guide:\n\n' + guide);
+        }
+
+        // Safety Checklist
+        const safetyChecklist = [
+            'Emergency contact information',
+            'First aid kit',
+            'Weather-appropriate clothing',
+            'Navigation tools (map, compass)',
+            'Sufficient water and food',
+            'Emergency shelter',
+            'Flashlight and batteries',
+            'Fully charged phone',
+            'Emergency whistle'
+        ];
+
+        function openChecklist() {
+            const checklistItems = safetyChecklist
+                .map((item, i) => `${i + 1}. ${item}`)
+                .join('\n');
+            alert('Pre-Adventure Safety Checklist:\n\n' + checklistItems);
+        }
+
+        // Add click event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelector('button:contains("View Emergency Numbers")').onclick = viewEmergencyNumbers;
+
+            document.querySelector('button:contains("View Guide")').onclick = viewFirstAidGuide;
+            document.querySelector('button:contains("Open Checklist")').onclick = openChecklist;
+            
+            // SOS Button functionality
+            document.querySelector('button:contains("SOS Emergency Alert")').onclick = function() {
+                alert('🚨 Emergency Alert Activated! 🚨\n\nEmergency services have been notified of your situation. Stay calm and remain in your location if safe to do so.');
+            };
+        });
+
+        // Helper function for button selection
+        HTMLElement.prototype.contains = function(text) {
+            return this.textContent.includes(text);
+        };
+    </script>
+</body>
+</html>
