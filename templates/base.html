@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Local Adventure Finder{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -25,6 +26,7 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('packing') }}">Packing Checklist</a>
                     </li>
+<<<<<<< HEAD
                     <!-- New navigation for user spots -->
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('submit_spot') }}">Submit Adventure Spot</a>
@@ -34,6 +36,12 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('notifications') }}">Notifications</a>
+=======
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('safety_dashboard') }}">
+                            <i class="bi bi-shield-fill"></i> Safety Dashboard
+                        </a>
+>>>>>>> 74397778b3c372e6ae3b3613f3b8e3d88d71d411
                     </li>
                     {% endif %}
                 </ul>

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row mb-5">
+        <div class="col-12">
+            <h1 class="text-center">Manage First Aid Kit</h1>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Add New Item Form -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">Add New Item</h3>
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Item Name</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="quantity" class="form-label">Quantity</label>
+                            <input type="number" class="form-control" id="quantity" name="quantity" value="1" min="1" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="expiry_date" class="form-label">Expiry Date</label>
+                            <input type="date" class="form-control" id="expiry_date" name="expiry_date">
+                        </div>
+                        <div class="mb-3">
+                            <label for="status" class="form-label">Status</label>
+                            <select class="form-select" id="status" name="status" required>
+                                <option value="Good">Good</option>
+                                <option value="Low">Low</option>
+                                <option value="Expired">Expired</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-danger">Add Item</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Existing Items List -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="card-title">Your First Aid Kit</h3>
+                    {% if kit %}
+                        <p class="text-muted">Last checked: {{ kit.last_checked.strftime('%Y-%m-%d') }}</p>
+                        {% if items %}
+                            <div class="list-group">
+                            {% for item in items %}
+                                <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h5 class="mb-1">{{ item.name }}</h5>
+                                        <span class="badge bg-{{ 'success' if item.status == 'Good' else 'warning' if item.status == 'Low' else 'danger' }}">
+                                            {{ item.status }}
+                                        </span>
+                                    </div>
+                                    <p class="mb-1">Quantity: {{ item.quantity }}</p>
+                                    {% if item.expiry_date %}
+                                        <small>Expires: {{ item.expiry_date.strftime('%Y-%m-%d') }}</small>
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+                            </div>
+                        {% else %}
+                            <p class="text-center">No items in your first aid kit yet.</p>
+                        {% endif %}
+                    {% else %}
+                        <p class="text-center">First aid kit not initialized yet. Add your first item to get started.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12 text-center">
+            <a href="{{ url_for('safety_dashboard') }}" class="btn btn-secondary">Back to Safety Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
