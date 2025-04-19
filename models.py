@@ -16,12 +16,7 @@ class User(UserMixin, db.Model):
     trips = db.relationship('Trip', backref='user', lazy=True)
     preferences = db.relationship('UserPreference', backref='user', uselist=False)
     interests = db.relationship('UserInterest', backref='user', lazy=True)
-<<<<<<< HEAD
     notifications = db.relationship('Notification', backref='user', lazy=True)
-=======
-    emergency_contacts = db.relationship('EmergencyContact', backref='user', lazy=True)
-    first_aid_kit = db.relationship('FirstAidKit', backref='user', uselist=False)
->>>>>>> 74397778b3c372e6ae3b3613f3b8e3d88d71d411
 
 class UserPreference(db.Model):
     __tablename__ = 'user_preferences'
@@ -87,7 +82,6 @@ class UserInterest(db.Model):
 
     @staticmethod
     def get_experience_levels():
-<<<<<<< HEAD
         return ['Beginner', 'Intermediate', 'Advanced']
 
 class UserSubmittedSpot(db.Model):
@@ -114,32 +108,3 @@ class Notification(db.Model):
     def mark_as_read(self):
         self.read = True
         db.session.commit()
-=======
-        return ['beginner', 'intermediate', 'advanced']
-
-class EmergencyContact(db.Model):
-    __tablename__ = 'emergency_contacts'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    relationship = db.Column(db.String(50))
-    phone = db.Column(db.String(20), nullable=False)
-    email = db.Column(db.String(120))
-    is_primary = db.Column(db.Boolean, default=False)
-
-class FirstAidKit(db.Model):
-    __tablename__ = 'first_aid_kits'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    last_checked = db.Column(db.DateTime, nullable=False)
-    items = db.relationship('FirstAidItem', backref='kit', lazy=True)
-
-class FirstAidItem(db.Model):
-    __tablename__ = 'first_aid_items'
-    id = db.Column(db.Integer, primary_key=True)
-    kit_id = db.Column(db.Integer, db.ForeignKey('first_aid_kits.id'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    quantity = db.Column(db.Integer, default=1)
-    expiry_date = db.Column(db.Date)
-    status = db.Column(db.String(20), default='Good')  # Good, Low, Expired
->>>>>>> 74397778b3c372e6ae3b3613f3b8e3d88d71d411

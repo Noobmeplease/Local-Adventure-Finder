@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, send_file, flash, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import current_user, LoginManager, UserMixin
+from flask_login import LoginManager, UserMixin, current_user
 import os
 from datetime import datetime
 from typing import Dict
@@ -15,25 +15,11 @@ except ImportError:
     from fpdf import FPDF
 
 # Import models
-<<<<<<< HEAD
 from models import db, User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest, UserSubmittedSpot, Notification
-=======
-from models import db, User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest, EmergencyContact, FirstAidKit, FirstAidItem
->>>>>>> 74397778b3c372e6ae3b3613f3b8e3d88d71d411
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
-
-    # Database configuration
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'adventure.db')
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'dev'
-
-    # Initialize SQLAlchemy
-    db.init_app(app)
-
-<<<<<<< HEAD
-=======
+    
     # Initialize Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)
@@ -43,11 +29,14 @@ def create_app():
     def load_user(user_id):
         return User.query.get(int(user_id))
 
-    # Register blueprints
-    from auth import auth as auth_blueprint
-    app.register_blueprint(auth_blueprint)
+    # Database configuration
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'adventure.db')
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SECRET_KEY'] = 'dev'
 
->>>>>>> 74397778b3c372e6ae3b3613f3b8e3d88d71d411
+    # Initialize SQLAlchemy
+    db.init_app(app)
+
     # Ensure instance folder exists
     try:
         os.makedirs(app.instance_path)
@@ -60,6 +49,89 @@ def create_app():
 
     # Register adventure suggestions blueprint
     from adventure_suggestions import adventure_suggestions_bp
+    app.register_blueprint(adventure_suggestions_bp, url_prefix='/adventure')
+
+    # Register safety routes
+    @app.route('/safety')
+    @login_required
+    def safety_dashboard():
+        emergency_contacts = EmergencyContact.query.filter_by(user_id=current_user.id).all()
+        first_aid_kit = FirstAidKit.query.filter_by(user_id=current_user.id).first()
+        
+        if first_aid_kit:
+            kit_items = first_aid_kit.items
+        else:
+            kit_items = []
+        
+        return render_template('safety.html',
+                             emergency_contacts=emergency_contacts,
+                             kit_items=kit_items,
+                             safety_checklist=['Emergency contact information',
+                                              'First aid kit',
+                                              'Navigation tools',
+                                              'Food and water',
+                                              'Weather-appropriate clothing',
+                                              'Emergency shelter'])
+
+    # Emergency Contacts Management
+    @app.route('/emergency-contacts', methods=['GET', 'POST'])
+    @login_required
+    def manage_emergency_contacts():
+        if request.method == 'POST':
+            name = request.form.get('name')
+            relationship = request.form.get('relationship')
+            phone = request.form.get('phone')
+            email = request.form.get('email')
+            
+            if not all([name, relationship, phone]):
+                flash('All fields are required!', 'danger')
+                return redirect(url_for('manage_emergency_contacts'))
+            
+            contact = EmergencyContact(
+                user_id=current_user.id,
+                name=name,
+                relationship=relationship,
+                phone=phone,
+                email=email
+            )
+            db.session.add(contact)
+            db.session.commit()
+            flash('Emergency contact added successfully!', 'success')
+            return redirect(url_for('manage_emergency_contacts'))
+        
+        contacts = EmergencyContact.query.filter_by(user_id=current_user.id).all()
+        return render_template('emergency_contacts.html', contacts=contacts)
+
+    @app.route('/emergency-contacts/<int:id>/edit', methods=['GET', 'POST'])
+    @login_required
+    def edit_emergency_contact(id):
+        contact = EmergencyContact.query.get_or_404(id)
+        if contact.user_id != current_user.id:
+            abort(403)
+            
+        if request.method == 'POST':
+            contact.name = request.form.get('name')
+            contact.relationship = request.form.get('relationship')
+            contact.phone = request.form.get('phone')
+            contact.email = request.form.get('email')
+            
+            db.session.commit()
+            flash('Emergency contact updated successfully!', 'success')
+            return redirect(url_for('manage_emergency_contacts'))
+        
+        return render_template('edit_emergency_contact.html', contact=contact)
+
+    @app.route('/emergency-contacts/<int:id>/delete', methods=['POST'])
+    @login_required
+    def delete_emergency_contact(id):
+        contact = EmergencyContact.query.get_or_404(id)
+        if contact.user_id != current_user.id:
+            abort(403)
+            
+        db.session.delete(contact)
+        db.session.commit()
+        flash('Emergency contact deleted successfully!', 'success')
+        return redirect(url_for('manage_emergency_contacts'))
     app.register_blueprint(adventure_suggestions_bp, url_prefix='/adventure')
 
     pass
@@ -352,16 +424,15 @@ def checklist_pdf():
 @login_required
 def buddy_finder():
     # Get current user's interests
-    user_interests = UserInterest.query.filter_by(user_id=session['user_id']).all()
+    user_interests = UserInterest.query.filter_by(user_id=current_user.id).all()
     user_activities = [interest.activity_type for interest in user_interests]
     user_experience = user_interests[0].experience_level if user_interests else None
-    current_user = User.query.get(session['user_id'])
     
     # Find matching buddies
     matching_buddies = []
     if user_interests:
         # Get all users except current user
-        potential_buddies = User.query.filter(User.id != session['user_id']).all()
+        potential_buddies = User.query.filter(User.id != current_user.id).all()
         
         for buddy in potential_buddies:
             buddy_interests = [interest.activity_type for interest in buddy.interests]
@@ -422,7 +493,6 @@ def send_buddy_request(buddy_id):
     flash('Connection request sent!')
     return redirect(url_for('buddy_finder'))
 
-<<<<<<< HEAD
 # --- User Submitted Adventure Spots Feature ---
 from flask import Markup, jsonify
 from sqlalchemy import func
@@ -512,93 +582,6 @@ def adventure_suggestions():
 def get_suggestions_api():
     suggestions = get_adventure_suggestions(session['user_id'])
     return jsonify(suggestions)
-=======
-# Safety Routes
-@app.route('/safety')
-@login_required
-def safety_dashboard():
-    emergency_contacts = EmergencyContact.query.filter_by(user_id=current_user.id).all()
-    first_aid_kit = FirstAidKit.query.filter_by(user_id=current_user.id).first()
-    
-    if first_aid_kit:
-        kit_items = first_aid_kit.items
-    else:
-        kit_items = []
-    
-    return render_template('safety.html',
-                          emergency_contacts=emergency_contacts,
-                          first_aid_kit=first_aid_kit,
-                          kit_items=kit_items)
-
-@app.route('/emergency-contacts', methods=['GET', 'POST'])
-@login_required
-def manage_emergency_contacts():
-    if request.method == 'POST':
-        new_contact = EmergencyContact(
-            user_id=current_user.id,
-            name=request.form['name'],
-            relationship=request.form['relationship'],
-            phone=request.form['phone'],
-            email=request.form['email'],
-            is_primary=bool(request.form.get('is_primary'))
-        )
-        
-        if new_contact.is_primary:
-            # Set all other contacts to non-primary
-            EmergencyContact.query.filter_by(user_id=current_user.id).update({EmergencyContact.is_primary: False})
-        
-        db.session.add(new_contact)
-        db.session.commit()
-        flash('Emergency contact added successfully!')
-        return redirect(url_for('safety_dashboard'))
-    
-    contacts = EmergencyContact.query.filter_by(user_id=current_user.id).all()
-    return render_template('emergency_contacts.html', contacts=contacts)
-
-@app.route('/first-aid-kit', methods=['GET', 'POST'])
-@login_required
-def manage_first_aid_kit():
-    kit = FirstAidKit.query.filter_by(user_id=current_user.id).first()
-    
-    if request.method == 'POST':
-        if not kit:
-            kit = FirstAidKit(user_id=current_user.id, last_checked=datetime.now())
-            db.session.add(kit)
-            db.session.commit()
-        
-        new_item = FirstAidItem(
-            kit_id=kit.id,
-            name=request.form['name'],
-            quantity=int(request.form['quantity']),
-            expiry_date=datetime.strptime(request.form['expiry_date'], '%Y-%m-%d').date() if request.form['expiry_date'] else None,
-            status=request.form['status']
-        )
-        
-        db.session.add(new_item)
-        db.session.commit()
-        flash('First aid item added successfully!')
-        return redirect(url_for('manage_first_aid_kit'))
-    
-    items = FirstAidItem.query.filter_by(kit_id=kit.id).all() if kit else []
-    return render_template('first_aid_kit.html', kit=kit, items=items)
-
-@app.route('/sos-alert')
-@login_required
-def trigger_sos():
-    # Get primary emergency contact
-    primary_contact = EmergencyContact.query.filter_by(
-        user_id=current_user.id,
-        is_primary=True
-    ).first()
-    
-    if primary_contact:
-        # In a real application, you would implement actual emergency notification logic here
-        flash(f'Emergency alert sent to {primary_contact.name} at {primary_contact.phone}')
-    else:
-        flash('No primary emergency contact found. Please add one in your safety settings.')
-    
-    return redirect(url_for('safety_dashboard'))
->>>>>>> 74397778b3c372e6ae3b3613f3b8e3d88d71d411
 
 if __name__ == '__main__':
     with app.app_context():

@@ -16,7 +16,7 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
-                    {% if 'user_id' in session %}
+                    {% if current_user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('buddy_finder') }}">Find Adventure Buddies</a>
                     </li>
@@ -26,8 +26,6 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('packing') }}">Packing Checklist</a>
                     </li>
-<<<<<<< HEAD
-                    <!-- New navigation for user spots -->
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('submit_spot') }}">Submit Adventure Spot</a>
                     </li>
@@ -36,19 +34,18 @@
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('notifications') }}">Notifications</a>
-=======
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('safety_dashboard') }}">
                             <i class="bi bi-shield-fill"></i> Safety Dashboard
                         </a>
->>>>>>> 74397778b3c372e6ae3b3613f3b8e3d88d71d411
                     </li>
                     {% endif %}
                 </ul>
                 <ul class="navbar-nav">
-                    {% if 'user_id' in session %}
+                    {% if current_user.is_authenticated %}
                     <li class="nav-item">
-                        <span class="nav-link">Welcome, {{ session['username'] }}!</span>
+                        <span class="nav-link">Welcome, {{ current_user.username }}!</span>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('auth.logout') }}">Logout</a>
