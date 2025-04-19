@@ -1,17 +1,16 @@
 import os
 import sys
-import subprocess
+from app import app
 
-# Get the full path of the current script
-current_dir = os.path.dirname(os.path.abspath(__file__))
-
-# Add the project directory to Python path
-sys.path.append(current_dir)
-
-# Run the application
 if __name__ == '__main__':
-    # Change to the project directory
-    os.chdir(current_dir)
+    # Set the project directory as current directory
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     
-    # Run the app using subprocess to ensure proper path handling
-    subprocess.run([sys.executable, 'app.py'], check=True)
+    # Ensure all required directories exist
+    try:
+        os.makedirs('instance')
+    except OSError:
+        pass
+    
+    # Run the Flask application
+    app.run(debug=True, port=5000)

@@ -14,7 +14,7 @@ except ImportError:
     from fpdf import FPDF
 
 # Import models
-from models import db, User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest
+from models import db, User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest, UserSubmittedSpot, Notification
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
@@ -27,15 +27,21 @@ def create_app():
     # Initialize SQLAlchemy
     db.init_app(app)
 
-    # Register blueprints
-    from auth import auth as auth_blueprint
-    app.register_blueprint(auth_blueprint)
-
     # Ensure instance folder exists
     try:
         os.makedirs(app.instance_path)
     except OSError:
         pass
+
+    # Register blueprints
+    from auth import auth as auth_blueprint
+    app.register_blueprint(auth_blueprint, url_prefix='/auth')
+
+    # Register adventure suggestions blueprint
+    from adventure_suggestions import adventure_suggestions_bp
+    app.register_blueprint(adventure_suggestions_bp, url_prefix='/adventure')
+
+    pass
 
     return app
 
@@ -44,13 +50,10 @@ app = create_app()
 # Initialize database and insert default items
 def init_db():
     with app.app_context():
-        # Drop all tables
-        db.drop_all()
-        
-        # Create tables with updated schema
+        # Only create tables if they don't exist
         db.create_all()
         
-        # Add default packing items
+        # Add default packing items only if they don't exist
         default_items = {
             'camping': ['Tent', 'Sleeping Bag', 'Camping Stove', 'Cooler'],
             'hiking': ['Hiking Boots', 'Backpack', 'Trekking Poles', 'Trail Map'],
@@ -58,17 +61,21 @@ def init_db():
             'kayaking': ['Life Jacket', 'Dry Bags', 'Paddle', 'Spray Skirt']
         }
         
-        for activity, items in default_items.items():
-            for item in items:
-                packing_item = PackingItem(
-                    adventure_type=activity,
-                    name=item,
-                    is_default=True
-                )
-                db.session.add(packing_item)
-        
-        db.session.commit()
-        print("Database initialized successfully!")
+        # Check if any default packing items exist
+        existing_items = PackingItem.query.filter_by(is_default=True).all()
+        if not existing_items:
+            for activity, items in default_items.items():
+                for item in items:
+                    packing_item = PackingItem(
+                        adventure_type=activity,
+                        name=item,
+                        is_default=True
+                    )
+                    db.session.add(packing_item)
+            db.session.commit()
+            print("Default packing items added successfully!")
+        else:
+            print("Database already initialized. No changes made.")
 
 def calculate_budget(adventure_type: str, location: str, duration: int, people: int) -> Dict:
     base_costs = {
@@ -88,6 +95,102 @@ def calculate_budget(adventure_type: str, location: str, duration: int, people: 
         'equipment': costs['gear'] * people,
         'total': total
     }
+
+def get_adventure_suggestions(user_id):
+    user = User.query.get(user_id)
+    if not user:
+        return []
+    
+    preferences = user.preferences
+    interests = user.interests
+    
+    # Get user's past trips
+    past_trips = Trip.query.filter_by(user_id=user_id).all()
+    
+    # Get locations that match user's interests
+    query = AdventureLocation.query
+    
+    # First filter by user interests
+    if interests:
+        # Get all unique activity types from user interests
+        activity_types = set(interest.activity_type for interest in interests)
+        
+        # Create a base query that matches any of the user's interested activities
+        base_query = AdventureLocation.category.in_(activity_types)
+        
+        # Add additional filters for each interest level
+        for interest in interests:
+            if interest.experience_level == 'beginner':
+                base_query = base_query | (AdventureLocation.difficulty <= 2)
+            elif interest.experience_level == 'intermediate':
+                base_query = base_query | ((AdventureLocation.difficulty > 2) & (AdventureLocation.difficulty <= 4))
+            elif interest.experience_level == 'advanced':
+                base_query = base_query | (AdventureLocation.difficulty > 4)
+        
+        query = query.filter(base_query)
+    
+    # Add preference filters if they exist
+    if preferences:
+        # Filter by preferred categories if set
+        if preferences.preferred_categories:
+            categories = [cat.strip() for cat in preferences.preferred_categories.split(',')]
+            query = query.filter(AdventureLocation.category.in_(categories))
+        
+        # Filter by difficulty level if set
+        if preferences.difficulty_level:
+            query = query.filter(AdventureLocation.difficulty <= preferences.difficulty_level)
+    
+    # Sort locations based on multiple criteria:
+    # 1. Locations that match user's interests exactly (priority)
+    # 2. Rating
+    # 3. Difficulty level
+    query = query.order_by(
+        # Priority for exact interest matches
+        AdventureLocation.category.in_(activity_types).desc(),
+        AdventureLocation.average_rating.desc(),
+        AdventureLocation.difficulty.asc()
+    )
+    
+    # Get top 10 results
+    locations = query.limit(10).all()
+    
+    # Convert to dictionary format with additional interest matching info
+    suggestions = []
+    for location in locations:
+        # Check how well this location matches user interests
+        interest_score = 0
+        matching_interests = []
+        
+        for interest in interests:
+            if interest.activity_type == location.category:
+                interest_score += 1
+                matching_interests.append(interest.activity_type)
+                
+                # Add bonus points based on experience level match
+                if interest.experience_level == 'beginner' and location.difficulty <= 2:
+                    interest_score += 1
+                elif interest.experience_level == 'intermediate' and 2 < location.difficulty <= 4:
+                    interest_score += 1
+                elif interest.experience_level == 'advanced' and location.difficulty > 4:
+                    interest_score += 1
+        
+        suggestions.append({
+            'id': location.id,
+            'name': location.name,
+            'description': location.description,
+            'category': location.category,
+            'difficulty': location.difficulty,
+            'average_rating': location.average_rating,
+            'latitude': location.latitude,
+            'longitude': location.longitude,
+            'interest_score': interest_score,
+            'matching_interests': matching_interests
+        })
+    
+    # Sort suggestions by interest score first, then rating
+    suggestions.sort(key=lambda x: (-x['interest_score'], -x['average_rating']))
+    
+    return suggestions
 
 def generate_packing_list(adventure_type: str, duration: int, season: str) -> Dict:
     base_items = {
@@ -297,6 +400,96 @@ def send_buddy_request(buddy_id):
     # Here you would implement the logic to send a connection request
     flash('Connection request sent!')
     return redirect(url_for('buddy_finder'))
+
+# --- User Submitted Adventure Spots Feature ---
+from flask import Markup, jsonify
+from sqlalchemy import func
+
+@app.route('/submit-spot', methods=['GET', 'POST'])
+def submit_spot():
+    if request.method == 'POST':
+        spot_name = request.form.get('spot_name')
+        location = request.form.get('location')
+        description = request.form.get('description')
+        contributor = session.get('username', 'Anonymous')
+        
+        if spot_name and location:
+            if 'user_id' in session:
+                user = User.query.get(session['user_id'])
+                spot = UserSubmittedSpot(
+                    spot_name=spot_name,
+                    location=location,
+                    description=description,
+                    contributor_id=user.id,
+                    contributor_name=user.username
+                )
+            else:
+                spot = UserSubmittedSpot(
+                    spot_name=spot_name,
+                    location=location,
+                    description=description,
+                    contributor_name=contributor
+                )
+            
+            db.session.add(spot)
+            db.session.commit()
+            flash(Markup('Adventure spot submitted! <a href="' + url_for('user_spots') + '">View all spots</a>'))
+            return redirect(url_for('submit_spot'))
+        else:
+            flash('Please provide both spot name and location.')
+    return render_template('submit_spot.html')
+
+@app.route('/user-spots')
+def user_spots():
+    # Get all spots with their contributors
+    spots = UserSubmittedSpot.query.join(User, UserSubmittedSpot.contributor_id == User.id)\
+        .order_by(UserSubmittedSpot.created_at.desc())\
+        .all()
+    return render_template('user_spots.html', spots=spots)
+
+@app.route('/send-spot-request/<int:spot_id>')
+@login_required
+def send_spot_request(spot_id):
+    spot = UserSubmittedSpot.query.get_or_404(spot_id)
+    # Create notification for the spot submitter
+    notification = Notification(
+        user_id=spot.contributor_id,
+        message=f'New spot request received from {session.get("username")} for your spot: {spot.spot_name}'
+    )
+    db.session.add(notification)
+    db.session.commit()
+    
+    flash(f'Request sent to {spot.contributor.username} for spot: {spot.spot_name}', 'success')
+    return redirect(url_for('user_spots'))
+
+@app.route('/mark-notification-read/<int:notification_id>', methods=['POST'])
+@login_required
+def mark_notification_read(notification_id):
+    notification = Notification.query.get_or_404(notification_id)
+    if notification.user_id != session.get('user_id'):
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    notification.mark_as_read()
+    return jsonify({'success': True})
+
+@app.route('/notifications')
+@login_required
+def notifications():
+    user_id = session.get('user_id')
+    notifications = Notification.query.filter_by(user_id=user_id).order_by(Notification.created_at.desc()).all()
+    return render_template('notifications.html', notifications=notifications)
+
+@app.route('/adventure-suggestions', methods=['GET'])
+@login_required
+def adventure_suggestions():
+    suggestions = get_adventure_suggestions(session['user_id'])
+    return render_template('adventure_suggestions.html', suggestions=suggestions)
+
+@app.route('/api/suggestions', methods=['GET'])
+@login_required
+def get_suggestions_api():
+    suggestions = get_adventure_suggestions(session['user_id'])
+    return jsonify(suggestions)
 
 if __name__ == '__main__':
     with app.app_context():

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-body">
+                    <h1 class="card-title">{{ location.name }}</h1>
+                    <p class="card-text">{{ location.description }}</p>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title">Details</h5>
+                                    <ul class="list-unstyled">
+                                        <li><strong>Category:</strong> {{ location.category }}</li>
+                                        <li><strong>Difficulty:</strong> {{ location.difficulty }}/5</li>
+                                        <li><strong>Rating:</strong> {{ location.average_rating }}/5</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title">Weather Information</h5>
+                                    <p>{{ location.weather_info }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

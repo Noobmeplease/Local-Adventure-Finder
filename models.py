@@ -15,6 +15,7 @@ class User(db.Model):
     trips = db.relationship('Trip', backref='user', lazy=True)
     preferences = db.relationship('UserPreference', backref='user', uselist=False)
     interests = db.relationship('UserInterest', backref='user', lazy=True)
+    notifications = db.relationship('Notification', backref='user', lazy=True)
 
 class UserPreference(db.Model):
     __tablename__ = 'user_preferences'
@@ -76,8 +77,33 @@ class UserInterest(db.Model):
 
     @staticmethod
     def get_activity_types():
-        return ['hiking', 'camping', 'biking', 'rock_climbing', 'kayaking']
+        return ['Hiking', 'Camping', 'Biking', 'Kayaking', 'Rock Climbing', 'Bird Watching']
 
     @staticmethod
     def get_experience_levels():
-        return ['beginner', 'intermediate', 'advanced']
+        return ['Beginner', 'Intermediate', 'Advanced']
+
+class UserSubmittedSpot(db.Model):
+    __tablename__ = 'user_submitted_spots'
+    id = db.Column(db.Integer, primary_key=True)
+    spot_name = db.Column(db.String(100), nullable=False)
+    location = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    contributor_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    contributor_name = db.Column(db.String(80))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    contributor = db.relationship('User', backref='submitted_spots')
+
+# Add Notification model
+class Notification(db.Model):
+    __tablename__ = 'notifications'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    def mark_as_read(self):
+        self.read = True
+        db.session.commit()

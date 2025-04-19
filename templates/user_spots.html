@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container mt-4">
+    <h2>User Submitted Adventure Spots</h2>
+    {% if spots %}
+        <ul class="list-group">
+        {% for spot in spots %}
+            <li class="list-group-item">
+                <h5>{{ spot.spot_name }} <small class="text-muted">Submitted by {{ spot.contributor.username }}</small></h5>
+                <div class="mt-2">
+                    <a href="{{ url_for('send_spot_request', spot_id=spot.id) }}" class="btn btn-sm btn-primary">Request Details</a>
+                </div>
+                <p><strong>Location:</strong> {{ spot.location }}</p>
+                {% if spot.description %}<p>{{ spot.description }}</p>{% endif %}
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No spots submitted yet. <a href="{{ url_for('submit_spot') }}">Be the first!</a></p>
+    {% endif %}
+</div>
+{% endblock %}
