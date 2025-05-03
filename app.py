@@ -51,28 +51,6 @@ def create_app():
     from adventure_suggestions import adventure_suggestions_bp
     app.register_blueprint(adventure_suggestions_bp, url_prefix='/adventure')
 
-    # Register safety routes
-    @app.route('/safety')
-    @login_required
-    def safety_dashboard():
-        emergency_contacts = EmergencyContact.query.filter_by(user_id=current_user.id).all()
-        first_aid_kit = FirstAidKit.query.filter_by(user_id=current_user.id).first()
-        
-        if first_aid_kit:
-            kit_items = first_aid_kit.items
-        else:
-            kit_items = []
-        
-        return render_template('safety.html',
-                             emergency_contacts=emergency_contacts,
-                             kit_items=kit_items,
-                             safety_checklist=['Emergency contact information',
-                                              'First aid kit',
-                                              'Navigation tools',
-                                              'Food and water',
-                                              'Weather-appropriate clothing',
-                                              'Emergency shelter'])
-
     # Emergency Contacts Management
     @app.route('/emergency-contacts', methods=['GET', 'POST'])
     @login_required
@@ -458,7 +436,7 @@ def buddy_finder():
 def update_interests():
     try:
         # Delete existing interests
-        UserInterest.query.filter_by(user_id=session['user_id']).delete()
+        UserInterest.query.filter_by(user_id=current_user.id).delete()
         
         # Get form data
         interests = request.form.getlist('interests')
@@ -466,13 +444,12 @@ def update_interests():
         bio = request.form.get('bio')
         
         # Update user bio
-        user = User.query.get(session['user_id'])
-        user.bio = bio
+        current_user.bio = bio
         
         # Add new interests
         for activity in interests:
             interest = UserInterest(
-                user_id=session['user_id'],
+                user_id=current_user.id,
                 activity_type=activity,
                 experience_level=experience_level
             )
@@ -498,30 +475,21 @@ from flask import Markup, jsonify
 from sqlalchemy import func
 
 @app.route('/submit-spot', methods=['GET', 'POST'])
+@login_required
 def submit_spot():
     if request.method == 'POST':
         spot_name = request.form.get('spot_name')
         location = request.form.get('location')
         description = request.form.get('description')
-        contributor = session.get('username', 'Anonymous')
         
         if spot_name and location:
-            if 'user_id' in session:
-                user = User.query.get(session['user_id'])
-                spot = UserSubmittedSpot(
-                    spot_name=spot_name,
-                    location=location,
-                    description=description,
-                    contributor_id=user.id,
-                    contributor_name=user.username
-                )
-            else:
-                spot = UserSubmittedSpot(
-                    spot_name=spot_name,
-                    location=location,
-                    description=description,
-                    contributor_name=contributor
-                )
+            spot = UserSubmittedSpot(
+                spot_name=spot_name,
+                location=location,
+                description=description,
+                contributor_id=current_user.id,
+                contributor_name=current_user.username
+            )
             
             db.session.add(spot)
             db.session.commit()
@@ -539,19 +507,31 @@ def user_spots():
         .all()
     return render_template('user_spots.html', spots=spots)
 
-@app.route('/send-spot-request/<int:spot_id>')
+@app.route('/spot-request-form/<int:spot_id>')
+@login_required
+def spot_request_form(spot_id):
+    spot = UserSubmittedSpot.query.get_or_404(spot_id)
+    return render_template('spot_request.html', spot=spot)
+
+@app.route('/send-spot-request/<int:spot_id>', methods=['POST'])
 @login_required
 def send_spot_request(spot_id):
     spot = UserSubmittedSpot.query.get_or_404(spot_id)
+    email = request.form.get('email')
+    
+    if not email:
+        flash('Please provide your email address.', 'danger')
+        return redirect(url_for('spot_request_form', spot_id=spot_id))
+    
     # Create notification for the spot submitter
     notification = Notification(
         user_id=spot.contributor_id,
-        message=f'New spot request received from {session.get("username")} for your spot: {spot.spot_name}'
+        message=f'New spot request received from {current_user.username} ({email}) for your spot: {spot.spot_name}'
     )
     db.session.add(notification)
     db.session.commit()
     
-    flash(f'Request sent to {spot.contributor.username} for spot: {spot.spot_name}', 'success')
+    flash(f'Request sent to {spot.contributor.username} for spot: {spot.spot_name}. They will contact you at {email}.', 'success')
     return redirect(url_for('user_spots'))
 
 @app.route('/mark-notification-read/<int:notification_id>', methods=['POST'])
@@ -567,8 +547,7 @@ def mark_notification_read(notification_id):
 @app.route('/notifications')
 @login_required
 def notifications():
-    user_id = session.get('user_id')
-    notifications = Notification.query.filter_by(user_id=user_id).order_by(Notification.created_at.desc()).all()
+    notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
     return render_template('notifications.html', notifications=notifications)
 
 @app.route('/adventure-suggestions', methods=['GET'])

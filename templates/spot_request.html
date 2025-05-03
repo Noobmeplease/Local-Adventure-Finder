@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Request Details for {{ spot.spot_name }}</h2>
+    <form method="post" action="{{ url_for('send_spot_request', spot_id=spot.id) }}">
+        <div class="form-group">
+            <label for="email">Your Email Address</label>
+            <input type="email" class="form-control" id="email" name="email" required>
+            <small class="form-text text-muted">Please provide your email so the spot owner can contact you.</small>
+        </div>
+        <button type="submit" class="btn btn-primary">Send Request</button>
+        <a href="{{ url_for('user_spots') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}
