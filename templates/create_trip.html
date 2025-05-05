@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Create New Trip</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="location_id" class="form-label">Location</label>
+                            <select class="form-select" id="location_id" name="location_id" required>
+                                {% for location in locations %}
+                                <option value="{{ location.id }}" 
+                                    {% if selected_location and location.name == selected_location %}selected{% endif %}>
+                                    {{ location.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="start_date" class="form-label">Start Date</label>
+                            <input type="date" class="form-control" id="start_date" name="start_date" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="end_date" class="form-label">End Date</label>
+                            <input type="date" class="form-control" id="end_date" name="end_date" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="budget" class="form-label">Budget Estimate ($)</label>
+                            <input type="number" class="form-control" id="budget" name="budget" 
+                                   value="{{ budget_estimate.total if budget_estimate else '' }}" required>
+                            {% if budget_estimate %}
+                            <div class="mt-2">
+                                <small class="text-muted">Budget breakdown:</small>
+                                <ul class="list-unstyled">
+                                    <li>Transportation: ${{ budget_estimate.transportation }}</li>
+                                    <li>Accommodation: ${{ budget_estimate.accommodation }}</li>
+                                    <li>Food: ${{ budget_estimate.food }}</li>
+                                    <li>Equipment: ${{ budget_estimate.equipment }}</li>
+                                </ul>
+                            </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Create Trip</button>
+                            <a href="{{ url_for('view_trips') }}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

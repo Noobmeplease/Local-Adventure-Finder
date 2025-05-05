@@ -49,6 +49,7 @@ class Trip(db.Model):
     budget_estimate = db.Column(db.Float)
     shared_publicly = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    location = db.relationship('AdventureLocation', backref='trips', lazy=True)
 
 class Budget(db.Model):
     __tablename__ = 'budgets'
@@ -108,3 +109,15 @@ class Notification(db.Model):
     def mark_as_read(self):
         self.read = True
         db.session.commit()
+
+class ItineraryItem(db.Model):
+    __tablename__ = 'itinerary_items'
+    id = db.Column(db.Integer, primary_key=True)
+    trip_id = db.Column(db.Integer, db.ForeignKey('trips.id'), nullable=False)
+    activity_name = db.Column(db.String(200), nullable=False)
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    trip = db.relationship('Trip', backref=db.backref('itinerary_items', lazy=True))

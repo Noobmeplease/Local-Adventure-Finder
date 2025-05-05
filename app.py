@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file, flash, redirect, url_for, session
+from flask import Flask, render_template, request, send_file, flash, redirect, url_for, session, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, current_user
 import os
@@ -15,7 +15,7 @@ except ImportError:
     from fpdf import FPDF
 
 # Import models
-from models import db, User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest, UserSubmittedSpot, Notification
+from models import db, User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest, UserSubmittedSpot, Notification, ItineraryItem
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
@@ -117,6 +117,104 @@ def create_app():
     return app
 
 app = create_app()
+
+def get_or_create_location(location_name, adventure_type):
+    """Find existing location or create new one"""
+    location = AdventureLocation.query.filter_by(name=location_name).first()
+    if not location:
+        location = AdventureLocation(
+            name=location_name,
+            category=adventure_type,
+            description=f"{adventure_type} location at {location_name}",
+            difficulty=2  # Default medium difficulty
+        )
+        db.session.add(location)
+        db.session.commit()
+    return location
+
+@app.route('/trip/new', methods=['GET', 'POST'])
+@login_required
+def create_trip():
+    if request.method == 'POST':
+        try:
+            new_trip = Trip(
+                user_id=current_user.id,
+                location_id=request.form['location_id'],
+                start_date=datetime.strptime(request.form['start_date'], '%Y-%m-%d'),
+                end_date=datetime.strptime(request.form['end_date'], '%Y-%m-%d'),
+                budget_estimate=float(request.form.get('budget', 0))
+            )
+            db.session.add(new_trip)
+            db.session.commit()
+            flash('Trip created successfully!', 'success')
+            
+            # Clear the session data after successful trip creation
+            session.pop('estimated_budget', None)
+            session.pop('selected_location', None)
+            
+            return redirect(url_for('view_itinerary', trip_id=new_trip.id))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error creating trip. Please try again.', 'danger')
+            return redirect(url_for('view_trips'))
+    
+    # Get budget estimation from session if available
+    budget_estimate = session.get('estimated_budget', None)
+    selected_location = session.get('selected_location', None)
+    
+    # Get all locations for the dropdown, with the selected one first if it exists
+    locations = AdventureLocation.query.all()
+    if selected_location:
+        locations = sorted(locations, 
+                         key=lambda x: x.id != selected_location['id'])
+    
+    return render_template('create_trip.html', 
+                         locations=locations,
+                         budget_estimate=budget_estimate,
+                         selected_location=selected_location)
+
+@app.route('/budget', methods=['GET', 'POST'])
+def budget():
+    if request.method == 'POST':
+        try:
+            adventure_type = request.form['adventure_type']
+            location_name = request.form['location']
+            duration = int(request.form['duration'])
+            people = int(request.form['people'])
+
+            # Get or create location in database
+            location = get_or_create_location(location_name, adventure_type)
+            
+            # Calculate budget
+            estimated_budget = calculate_budget(adventure_type, location_name, duration, people)
+            
+            # Save to database
+            budget = Budget(
+                transport=estimated_budget['transportation'],
+                accommodation=estimated_budget['accommodation'],
+                food=estimated_budget['food'],
+                gear=estimated_budget['equipment'],
+                total=estimated_budget['total']
+            )
+            db.session.add(budget)
+            db.session.commit()
+            
+            # Store budget and location details in session
+            session['estimated_budget'] = estimated_budget
+            session['selected_location'] = {
+                'id': location.id,
+                'name': location_name,
+                'adventure_type': adventure_type,
+                'duration': duration,
+                'people': people
+            }
+            
+            return render_template('budget.html', 
+                                estimated_budget=estimated_budget,
+                                show_create_trip=True)
+        except (ValueError, KeyError) as e:
+            flash('Error calculating budget. Please check your inputs.', 'danger')
+    return render_template('budget.html')
 
 # Initialize database and insert default items
 def init_db():
@@ -303,34 +401,6 @@ def generate_packing_list(adventure_type: str, duration: int, season: str) -> Di
 @login_required
 def index():
     return render_template('base.html')
-
-@app.route('/budget', methods=['GET', 'POST'])
-def budget():
-    if request.method == 'POST':
-        try:
-            # Handle the budget calculation
-            estimated_budget = calculate_budget(
-                request.form['adventure_type'],
-                request.form['location'],
-                int(request.form['duration']),
-                int(request.form['people'])
-            )
-            
-            # Save to database
-            budget = Budget(
-                transport=estimated_budget['transportation'],
-                accommodation=estimated_budget['accommodation'],
-                food=estimated_budget['food'],
-                gear=estimated_budget['equipment'],
-                total=estimated_budget['total']
-            )
-            db.session.add(budget)
-            db.session.commit()
-            
-            return render_template('budget.html', estimated_budget=estimated_budget)
-        except (ValueError, KeyError):
-            pass
-    return render_template('budget.html')
 
 @app.route('/packing', methods=['GET', 'POST'])
 def packing():
@@ -561,6 +631,113 @@ def adventure_suggestions():
 def get_suggestions_api():
     suggestions = get_adventure_suggestions(session['user_id'])
     return jsonify(suggestions)
+
+@app.route('/itinerary/<int:trip_id>', methods=['GET'])
+@login_required
+def view_itinerary(trip_id):
+    trip = Trip.query.join(AdventureLocation).filter(Trip.id == trip_id).first_or_404()
+    # Ensure user owns this trip
+    if trip.user_id != current_user.id:
+        abort(403)
+    
+    itinerary_items = ItineraryItem.query.filter_by(trip_id=trip_id).order_by(ItineraryItem.start_time).all()
+    return render_template('itinerary.html', trip=trip, itinerary_items=itinerary_items)
+
+@app.route('/itinerary/<int:trip_id>/add', methods=['GET', 'POST'])
+@login_required
+def add_itinerary_item(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    if trip.user_id != current_user.id:
+        abort(403)
+    
+    if request.method == 'POST':
+        new_item = ItineraryItem(
+            trip_id=trip_id,
+            activity_name=request.form['activity_name'],
+            start_time=datetime.strptime(request.form['start_time'], '%Y-%m-%dT%H:%M'),
+            end_time=datetime.strptime(request.form['end_time'], '%Y-%m-%dT%H:%M'),
+            notes=request.form.get('notes', '')
+        )
+        db.session.add(new_item)
+        db.session.commit()
+        flash('Activity added to itinerary!', 'success')
+        return redirect(url_for('view_itinerary', trip_id=trip_id))
+    
+    return render_template('add_itinerary_item.html', trip=trip)
+
+@app.route('/itinerary/<int:trip_id>/edit/<int:item_id>', methods=['GET', 'POST'])
+@login_required
+def edit_itinerary_item(trip_id, item_id):
+    item = ItineraryItem.query.get_or_404(item_id)
+    trip = Trip.query.get_or_404(trip_id)
+    
+    if trip.user_id != current_user.id:
+        abort(403)
+    
+    if request.method == 'POST':
+        item.activity_name = request.form['activity_name']
+        item.start_time = datetime.strptime(request.form['start_time'], '%Y-%m-%dT%H:%M')
+        item.end_time = datetime.strptime(request.form['end_time'], '%Y-%m-%dT%H:%M')
+        item.notes = request.form.get('notes', '')
+        db.session.commit()
+        flash('Activity updated!', 'success')
+        return redirect(url_for('view_itinerary', trip_id=trip_id))
+    
+    return render_template('edit_itinerary_item.html', trip=trip, item=item)
+
+@app.route('/itinerary/<int:trip_id>/delete/<int:item_id>', methods=['POST'])
+@login_required
+def delete_itinerary_item(trip_id, item_id):
+    item = ItineraryItem.query.get_or_404(item_id)
+    trip = Trip.query.get_or_404(trip_id)
+    
+    if trip.user_id != current_user.id:
+        abort(403)
+    
+    db.session.delete(item)
+    db.session.commit()
+    flash('Activity deleted!', 'success')
+    return redirect(url_for('view_itinerary', trip_id=trip_id))
+
+@app.route('/trips')
+@login_required
+def view_trips():
+    trips = Trip.query.filter_by(user_id=current_user.id).order_by(Trip.start_date).all()
+    return render_template('trips.html', trips=trips)
+
+@app.route('/export-itinerary/<int:trip_id>')
+@login_required
+def export_itinerary(trip_id):
+    trip = Trip.query.get_or_404(trip_id)
+    if trip.user_id != current_user.id:
+        abort(403)
+    
+    itinerary_items = ItineraryItem.query.filter_by(trip_id=trip_id).order_by(ItineraryItem.start_time).all()
+    
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=16)
+    pdf.cell(200, 10, txt=f"Trip Itinerary - {trip.location.name}", ln=True, align='C')
+    pdf.ln(10)
+    
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt=f"From: {trip.start_date.strftime('%Y-%m-%d')} To: {trip.end_date.strftime('%Y-%m-%d')}", ln=True)
+    pdf.ln(5)
+    
+    for item in itinerary_items:
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(200, 10, txt=item.activity_name, ln=True)
+        pdf.set_font("Arial", size=10)
+        pdf.cell(200, 10, txt=f"Time: {item.start_time.strftime('%H:%M')} - {item.end_time.strftime('%H:%M')}", ln=True)
+        if item.notes:
+            pdf.multi_cell(200, 10, txt=f"Notes: {item.notes}")
+        pdf.ln(5)
+    
+    filename = f"itinerary_{trip_id}.pdf"
+    filepath = os.path.join(app.static_folder, filename)
+    pdf.output(filepath)
+    
+    return send_file(filepath, as_attachment=True)
 
 if __name__ == '__main__':
     with app.app_context():
