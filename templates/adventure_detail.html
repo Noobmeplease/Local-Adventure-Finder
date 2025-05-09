@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}{{ location.name }} - Adventure Details{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <div class="card">
+                <div class="card-header">
+                    <h1>{{ location.name }}</h1>
+                </div>
+                <div class="card-body">
+                    <p><strong>Category:</strong> {{ location.category }}</p>
+                    <p><strong>Description:</strong> {{ location.description }}</p>
+                    <p><strong>Difficulty:</strong> {{ location.difficulty | difficulty }}</p> {# Assuming you have a 'difficulty' filter #}
+                    <p><strong>Average Rating:</strong> {{ location.average_rating | round(1) }}/5</p>
+                    <p><strong>Latitude:</strong> {{ location.latitude }}</p>
+                    <p><strong>Longitude:</strong> {{ location.longitude }}</p>
+                    {% if location.weather_info %}
+                        <p><strong>Weather Info:</strong> {{ location.weather_info }}</p>
+                    {% endif %}
+                    
+                    {# Add more details as needed #}
+                    
+                    <a href="{{ url_for('adventure_suggestions.show_suggestions') }}" class="btn btn-primary mt-3">Back to Suggestions</a>
+                    {# Button to plan a trip based on this location #}
+                    <a href="{{ url_for('adventure_suggestions.create_trip_from_suggestion', location_id=location.id) }}" class="btn btn-success mt-3">Plan Trip from here</a>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

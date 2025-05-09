@@ -1,10 +1,10 @@
-from flask import Flask, render_template, request, send_file, flash, redirect, url_for, session, abort
+from flask import Flask, render_template, request, send_file, flash, redirect, url_for, session, abort, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, current_user
 import os
-from datetime import datetime
+from datetime import datetime, time
 from typing import Dict
-from utils import login_required
+from utils import login_required # Updated import
 
 try:
     from fpdf import FPDF
@@ -15,7 +15,10 @@ except ImportError:
     from fpdf import FPDF
 
 # Import models
-from models import db, User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest, UserSubmittedSpot, Notification, ItineraryItem
+from models import db, User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest, UserSubmittedSpot, Notification, ItineraryItem, Review, UserEmergencyContact, UserMedicalReport, SuggestedEvent, UserAdventureDifficultyFeedback
+from werkzeug.utils import secure_filename
+from flask import send_from_directory
+from sqlalchemy import func
 
 def create_app():
     app = Flask(__name__, instance_relative_config=True)
@@ -33,9 +36,21 @@ def create_app():
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'adventure.db')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = 'dev'
+    app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads')
+    app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'gif'}
+
+    # Ensure upload folder exists
+    try:
+        os.makedirs(app.config['UPLOAD_FOLDER'])
+    except OSError:
+        pass
 
     # Initialize SQLAlchemy
     db.init_app(app)
+
+    # Register Jinja2 filters
+    from utils import format_difficulty
+    app.jinja_env.filters['format_difficulty'] = format_difficulty
 
     # Ensure instance folder exists
     try:
@@ -47,74 +62,383 @@ def create_app():
     from auth import auth as auth_blueprint
     app.register_blueprint(auth_blueprint, url_prefix='/auth')
 
-    # Register adventure suggestions blueprint
     from adventure_suggestions import adventure_suggestions_bp
-    app.register_blueprint(adventure_suggestions_bp, url_prefix='/adventure')
+    app.register_blueprint(adventure_suggestions_bp, url_prefix='/adventure-suggestions')
 
-    # Emergency Contacts Management
-    @app.route('/emergency-contacts', methods=['GET', 'POST'])
+    # --- District Adventure & Difficulty Search Feature ---
+    DISTRICT_ADVENTURE_DATA = {
+        "chittagong": {
+            "name": "Chittagong",
+            "spots": ["Cox's Bazar", "Bandarban", "Saint Martin's Island", "Rangamati", "Khagrachari"],
+            "difficulties": ["Language barrier (local dialects)", "Hotel syndication/price gouging during peak season", "Transportation to remote areas", "Navigating hilly terrains (Bandarban, Rangamati)", "Limited mobile network in some spots"]
+        },
+        "sylhet": {
+            "name": "Sylhet",
+            "spots": ["Jaflong", "Ratargul Swamp Forest", "Lalakhal", "Bisnakandi", "Sreemangal (Tea Gardens)"],
+            "difficulties": ["Unpredictable weather (especially during monsoon)", "Bargaining with local transport (CNG, boats)", "Accommodation quality varies greatly", "Leeches during rainy season in forests", "Connectivity to some remote spots"]
+        },
+        "dhaka": {
+            "name": "Dhaka Division (Around Dhaka City)",
+            "spots": ["Sonargaon (Old Capital)", "Mainamati (Buddhist Ruins, Comilla)", "Baliati Palace (Manikganj)", "National Martyr's Monument (Savar)", "Bangabandhu Safari Park (Gazipur)"],
+            "difficulties": ["Heavy traffic congestion (Dhaka city and highways)", "Air and noise pollution (Dhaka city)", "Finding reliable tourist information for lesser-known spots", "Crowds at popular attractions, especially on holidays", "Limited public transport to some outskirts locations"]
+        }
+        # Add more districts and their data here as needed
+    }
+
+    @app.route('/district_search', methods=['GET', 'POST'])
     @login_required
-    def manage_emergency_contacts():
+    def district_search():
+        district_info = None
+        available_districts = sorted([DISTRICT_ADVENTURE_DATA[key]['name'] for key in DISTRICT_ADVENTURE_DATA])
+
+        if request.method == 'POST':
+            district_name_query = request.form.get('district_name', '').strip().lower()
+            # Find the internal key for the selected display name
+            selected_district_key = None
+            for key, value in DISTRICT_ADVENTURE_DATA.items():
+                if value['name'].lower() == district_name_query:
+                    selected_district_key = key
+                    break
+
+            if not district_name_query:
+                flash('Please select a district name.', 'warning')
+            elif selected_district_key and selected_district_key in DISTRICT_ADVENTURE_DATA:
+                district_info = DISTRICT_ADVENTURE_DATA[selected_district_key]
+            else:
+                flash(f'No information found for "{request.form.get("district_name")}".', 'info')
+        return render_template('district_difficulty_search.html', district_info=district_info, available_districts=available_districts)
+
+    # Placeholder event data - in a real application, this would come from a database or an external API
+    placeholder_events = [
+        {
+            "id": 1,
+            "name": "Summer Music Festival",
+            "date": "2025-07-20",
+            "time": "14:00",
+            "venue": "Central Park Bandshell",
+            "location": "New York, NY",
+            "description": "An outdoor music festival featuring local and international bands. All ages welcome!",
+            "category": "Music",
+            "image_url": "https://via.placeholder.com/300x200.png?text=Music+Festival",
+            "url": "#"
+        },
+        {
+            "id": 2,
+            "name": "Community Art Fair",
+            "date": "2025-08-05",
+            "time": "10:00 - 18:00",
+            "venue": "Town Square",
+            "location": "Springfield, IL",
+            "description": "Browse and buy art from local artists. Live demonstrations and food trucks.",
+            "category": "Arts",
+            "image_url": "https://via.placeholder.com/300x200.png?text=Art+Fair",
+            "url": "#"
+        },
+        {
+            "id": 3,
+            "name": "Tech Workshop: Intro to Python",
+            "date": "2025-07-28",
+            "time": "18:00 - 20:00",
+            "venue": "Downtown Library - Room A",
+            "location": "San Francisco, CA",
+            "description": "A beginner-friendly workshop on the basics of Python programming.",
+            "category": "Workshops",
+            "image_url": "https://via.placeholder.com/300x200.png?text=Tech+Workshop",
+            "url": "#"
+        },
+        {
+            "id": 4,
+            "name": "Charity Fun Run",
+            "date": "2025-09-10",
+            "time": "09:00",
+            "venue": "Riverside Path",
+            "location": "Austin, TX",
+            "description": "A 5K fun run to support local charities. Get active for a good cause!",
+            "category": "Sports",
+            "image_url": "https://via.placeholder.com/300x200.png?text=Fun+Run",
+            "url": "#"
+        }
+    ]
+
+    @app.route('/events/')
+    def show_nearby_events():
+        """Renders the main page for nearby events."""
+        community_events = SuggestedEvent.query.order_by(SuggestedEvent.event_date, SuggestedEvent.event_time).all()
+        return render_template('nearby_events.html', community_events=community_events)
+
+    @app.route('/events/suggest', methods=['GET', 'POST'])
+    @login_required
+    def suggest_event():
         if request.method == 'POST':
             name = request.form.get('name')
-            relationship = request.form.get('relationship')
-            phone = request.form.get('phone')
-            email = request.form.get('email')
+            description = request.form.get('description')
+            location_text = request.form.get('location_text')
+            event_date_str = request.form.get('event_date')
+            event_time_str = request.form.get('event_time')
+            category = request.form.get('category')
+
+            if not name or not location_text or not event_date_str:
+                flash('Event Name, Location, and Date are required.', 'danger')
+                return render_template('suggest_event.html') # Re-render form with error
+
+            try:
+                event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
+                if event_date < datetime.utcnow().date():
+                    flash('Event date cannot be in the past.', 'danger')
+                    return render_template('suggest_event.html', form_data=request.form)
+            except ValueError:
+                flash('Invalid date format. Please use YYYY-MM-DD.', 'danger')
+                return render_template('suggest_event.html', form_data=request.form)
+
+            event_time_obj = None
+            if event_time_str:
+                try:
+                    event_time_obj = datetime.strptime(event_time_str, '%H:%M').time()
+                except ValueError:
+                    flash('Invalid time format. Please use HH:MM.', 'danger')
+                    return render_template('suggest_event.html', form_data=request.form)
             
-            if not all([name, relationship, phone]):
-                flash('All fields are required!', 'danger')
-                return redirect(url_for('manage_emergency_contacts'))
-            
-            contact = EmergencyContact(
-                user_id=current_user.id,
+            new_event = SuggestedEvent(
                 name=name,
-                relationship=relationship,
-                phone=phone,
-                email=email
+                description=description,
+                location_text=location_text,
+                event_date=event_date,
+                event_time=event_time_obj,
+                category=category,
+                user_id=current_user.id
             )
-            db.session.add(contact)
+            db.session.add(new_event)
+            try:
+                db.session.commit()
+                flash('Your event suggestion has been submitted!', 'success')
+                return redirect(url_for('show_nearby_events')) # Updated url_for
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Error submitting event: {str(e)}', 'danger')
+                print(f"Error submitting event: {e}")
+
+        return render_template('suggest_event.html')
+
+    @app.route('/events/api/filter_community_events')
+    def api_filter_community_events():
+        category_filter = request.args.get('category', type=str)
+        date_filter_str = request.args.get('date', type=str)
+
+        query = SuggestedEvent.query
+
+        if category_filter:
+            query = query.filter(SuggestedEvent.category.ilike(f'%{category_filter}%'))
+
+        if date_filter_str:
+            try:
+                filter_date = datetime.strptime(date_filter_str, '%Y-%m-%d').date()
+                query = query.filter(SuggestedEvent.event_date == filter_date)
+            except ValueError:
+                return jsonify({"error": "Invalid date format. Use YYYY-MM-DD."}), 400
+                
+        query = query.order_by(SuggestedEvent.event_date, SuggestedEvent.event_time)
+        filtered_community_events = query.all()
+
+        events_list = []
+        for event in filtered_community_events:
+            events_list.append({
+                'id': event.id,
+                'name': event.name,
+                'description': event.description,
+                'location_text': event.location_text,
+                'event_date': event.event_date.strftime('%Y-%m-%d') if event.event_date else None,
+                'event_time': event.event_time.strftime('%H:%M') if event.event_time else None,
+                'category': event.category,
+                'suggester_username': event.suggester.username if event.suggester else 'Unknown'
+            })
+        return jsonify({"events": events_list})
+
+    @app.route('/events/api/nearby')
+    def api_get_nearby_events():
+        """
+        API endpoint to fetch nearby events.
+        Filters events based on category and date query parameters.
+        """
+        category_filter = request.args.get('category', type=str)
+        date_filter_str = request.args.get('date', type=str)
+
+        # Use a different variable name for the list being filtered to avoid modifying the global placeholder_events
+        current_filtered_events = list(placeholder_events) 
+
+        if category_filter:
+            current_filtered_events = [event for event in current_filtered_events if event.get('category', '').lower() == category_filter.lower()]
+
+        if date_filter_str:
+            try:
+                # Assuming date_filter_str is in 'YYYY-MM-DD' format, matching event dates
+                current_filtered_events = [event for event in current_filtered_events if event.get('date') == date_filter_str]
+            except ValueError:
+                # Silently ignore invalid date format for now, or could return an error
+                pass 
+                
+        return jsonify({"events": current_filtered_events})
+
+    # End of moved event routes
+
+    @app.route('/safety-tips')
+    @login_required
+    def safety_tips_page():
+        user_emergency_contacts = UserEmergencyContact.query.filter_by(user_id=current_user.id).order_by(UserEmergencyContact.created_at.desc()).all()
+        user_medical_reports = UserMedicalReport.query.filter_by(user_id=current_user.id).order_by(UserMedicalReport.reported_at.desc()).all()
+        return render_template('safety_tips.html', 
+                               user_contacts=user_emergency_contacts,
+                               user_medical_reports=user_medical_reports)
+
+    @app.route('/add_user_emergency_contact', methods=['POST'])
+    @login_required
+    def add_user_emergency_contact():
+        try:
+            contact_name = request.form.get('contact_name')
+            phone_number = request.form.get('phone_number')
+            relationship = request.form.get('relationship')
+
+            if not contact_name or not phone_number:
+                flash('Contact name and phone number are required.', 'danger')
+                return redirect(url_for('safety_tips_page'))
+
+            new_contact = UserEmergencyContact(
+                user_id=current_user.id,
+                contact_name=contact_name,
+                phone_number=phone_number,
+                relationship=relationship
+            )
+            db.session.add(new_contact)
             db.session.commit()
             flash('Emergency contact added successfully!', 'success')
-            return redirect(url_for('manage_emergency_contacts'))
-        
-        contacts = EmergencyContact.query.filter_by(user_id=current_user.id).all()
-        return render_template('emergency_contacts.html', contacts=contacts)
+        except Exception as e:
+            db.session.rollback()
+            flash('Error adding emergency contact. Please try again.', 'danger')
+        return redirect(url_for('safety_tips_page'))
 
-    @app.route('/emergency-contacts/<int:id>/edit', methods=['GET', 'POST'])
+    @app.route('/delete_user_emergency_contact/<int:contact_id>', methods=['POST'])
     @login_required
-    def edit_emergency_contact(id):
-        contact = EmergencyContact.query.get_or_404(id)
-        if contact.user_id != current_user.id:
-            abort(403)
-            
-        if request.method == 'POST':
-            contact.name = request.form.get('name')
-            contact.relationship = request.form.get('relationship')
-            contact.phone = request.form.get('phone')
-            contact.email = request.form.get('email')
-            
+    def delete_user_emergency_contact(contact_id):
+        try:
+            contact_to_delete = UserEmergencyContact.query.get_or_404(contact_id)
+            if contact_to_delete.user_id != current_user.id:
+                abort(403) # Forbidden
+            db.session.delete(contact_to_delete)
             db.session.commit()
-            flash('Emergency contact updated successfully!', 'success')
-            return redirect(url_for('manage_emergency_contacts'))
-        
-        return render_template('edit_emergency_contact.html', contact=contact)
+            flash('Emergency contact deleted successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash('Error deleting emergency contact. Please try again.', 'danger')
+        return redirect(url_for('safety_tips_page'))
 
-    @app.route('/emergency-contacts/<int:id>/delete', methods=['POST'])
+    @app.route('/add_user_medical_report', methods=['POST'])
     @login_required
-    def delete_emergency_contact(id):
-        contact = EmergencyContact.query.get_or_404(id)
-        if contact.user_id != current_user.id:
-            abort(403)
-            
-        db.session.delete(contact)
-        db.session.commit()
-        flash('Emergency contact deleted successfully!', 'success')
-        return redirect(url_for('manage_emergency_contacts'))
-    app.register_blueprint(adventure_suggestions_bp, url_prefix='/adventure')
+    def add_user_medical_report():
+        try:
+            condition_name = request.form.get('condition_name')
+            notes = request.form.get('notes')
+            if condition_name:
+                new_report = UserMedicalReport(
+                    user_id=current_user.id,
+                    condition_name=condition_name,
+                    notes=notes
+                )
+                db.session.add(new_report)
+                db.session.commit()
+                flash('Medical report added successfully!', 'success')
+            else:
+                flash('Failed to add medical report. Condition name is required.', 'danger')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error adding medical report: {str(e)}', 'danger')
+        return redirect(url_for('safety_tips_page'))
 
-    pass
+    @app.route('/delete_user_medical_report/<int:report_id>', methods=['POST'])
+    @login_required
+    def delete_user_medical_report(report_id):
+        try:
+            report_to_delete = UserMedicalReport.query.get_or_404(report_id)
+            if report_to_delete.user_id != current_user.id:
+                abort(403) # Forbidden
+            db.session.delete(report_to_delete)
+            db.session.commit()
+            flash('Medical report deleted successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error deleting medical report: {str(e)}', 'danger')
+        return redirect(url_for('safety_tips_page'))
+
+    @app.route('/reviews', methods=['GET'])
+    @login_required
+    def reviews_page():
+        reviews = Review.query.order_by(Review.created_at.desc()).all()
+        return render_template('reviews.html', reviews=reviews, current_user=current_user)
+
+    # Helper function to check allowed file extensions
+    def allowed_file(filename):
+        return '.' in filename and \
+               filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
+    @app.route('/submit_review', methods=['POST'])
+    @login_required
+    def submit_review():
+        place_name = request.form.get('placeName')
+        rating_str = request.form.get('rating')
+        comment = request.form.get('comment')
+        picture_file = request.files.get('picture')
+
+        if not place_name or not rating_str:
+            flash('Place name and rating are required.', 'danger')
+            return redirect(url_for('reviews_page'))
+        
+        try:
+            rating = int(rating_str)
+            if not (1 <= rating <= 5):
+                flash('Rating must be between 1 and 5.', 'danger')
+                return redirect(url_for('reviews_page'))
+        except ValueError:
+            flash('Invalid rating value. Please enter a number between 1 and 5.', 'danger')
+            return redirect(url_for('reviews_page'))
+
+        picture_filename_to_save = None
+        if picture_file and picture_file.filename != '':
+            if allowed_file(picture_file.filename):
+                picture_filename_to_save = secure_filename(picture_file.filename)
+                try:
+                    upload_path = os.path.join(app.config['UPLOAD_FOLDER'], picture_filename_to_save)
+                    picture_file.save(upload_path)
+                except Exception as e:
+                    # Log e for server-side debugging
+                    flash('An error occurred while saving the picture.', 'danger')
+                    return redirect(url_for('reviews_page'))
+            else:
+                flash('Invalid image file type. Allowed types are: png, jpg, jpeg, gif.', 'danger')
+                return redirect(url_for('reviews_page'))
+        
+        try:
+            new_review = Review(
+                place_name=place_name,
+                rating=rating,
+                comment=comment,
+                picture_filename=picture_filename_to_save,
+                user_id=current_user.id
+            )
+            db.session.add(new_review)
+            db.session.commit()
+            flash('Review submitted successfully!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            # Log e for server-side debugging
+            flash('An error occurred while submitting your review. Please try again.', 'danger')
+        
+        return redirect(url_for('reviews_page'))
+
+
+    @app.route('/uploads/<filename>')
+    def uploaded_file(filename):
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
     return app
+
 
 app = create_app()
 
@@ -219,8 +543,15 @@ def budget():
 # Initialize database and insert default items
 def init_db():
     with app.app_context():
-        # Only create tables if they don't exist
-        db.create_all()
+        print("[DEBUG] Attempting to initialize database...")
+        # Import all models here to ensure they are registered with SQLAlchemy before create_all()
+        from models import User, UserPreference, AdventureLocation, Trip, Budget, PackingItem, UserInterest, UserSubmittedSpot, Notification, ItineraryItem, Review, UserEmergencyContact, UserMedicalReport
+        
+        try:
+            db.create_all()  # Create sql tables for our data models
+            print("[DEBUG] db.create_all() executed successfully.")
+        except Exception as e:
+            print(f"[DEBUG] Error during db.create_all(): {e}")
         
         # Add default packing items only if they don't exist
         default_items = {
@@ -244,7 +575,7 @@ def init_db():
             db.session.commit()
             print("Default packing items added successfully!")
         else:
-            print("Database already initialized. No changes made.")
+            print("Database already has default packing items. No changes made to packing items.")
 
 def calculate_budget(adventure_type: str, location: str, duration: int, people: int) -> Dict:
     base_costs = {
@@ -265,101 +596,6 @@ def calculate_budget(adventure_type: str, location: str, duration: int, people: 
         'total': total
     }
 
-def get_adventure_suggestions(user_id):
-    user = User.query.get(user_id)
-    if not user:
-        return []
-    
-    preferences = user.preferences
-    interests = user.interests
-    
-    # Get user's past trips
-    past_trips = Trip.query.filter_by(user_id=user_id).all()
-    
-    # Get locations that match user's interests
-    query = AdventureLocation.query
-    
-    # First filter by user interests
-    if interests:
-        # Get all unique activity types from user interests
-        activity_types = set(interest.activity_type for interest in interests)
-        
-        # Create a base query that matches any of the user's interested activities
-        base_query = AdventureLocation.category.in_(activity_types)
-        
-        # Add additional filters for each interest level
-        for interest in interests:
-            if interest.experience_level == 'beginner':
-                base_query = base_query | (AdventureLocation.difficulty <= 2)
-            elif interest.experience_level == 'intermediate':
-                base_query = base_query | ((AdventureLocation.difficulty > 2) & (AdventureLocation.difficulty <= 4))
-            elif interest.experience_level == 'advanced':
-                base_query = base_query | (AdventureLocation.difficulty > 4)
-        
-        query = query.filter(base_query)
-    
-    # Add preference filters if they exist
-    if preferences:
-        # Filter by preferred categories if set
-        if preferences.preferred_categories:
-            categories = [cat.strip() for cat in preferences.preferred_categories.split(',')]
-            query = query.filter(AdventureLocation.category.in_(categories))
-        
-        # Filter by difficulty level if set
-        if preferences.difficulty_level:
-            query = query.filter(AdventureLocation.difficulty <= preferences.difficulty_level)
-    
-    # Sort locations based on multiple criteria:
-    # 1. Locations that match user's interests exactly (priority)
-    # 2. Rating
-    # 3. Difficulty level
-    query = query.order_by(
-        # Priority for exact interest matches
-        AdventureLocation.category.in_(activity_types).desc(),
-        AdventureLocation.average_rating.desc(),
-        AdventureLocation.difficulty.asc()
-    )
-    
-    # Get top 10 results
-    locations = query.limit(10).all()
-    
-    # Convert to dictionary format with additional interest matching info
-    suggestions = []
-    for location in locations:
-        # Check how well this location matches user interests
-        interest_score = 0
-        matching_interests = []
-        
-        for interest in interests:
-            if interest.activity_type == location.category:
-                interest_score += 1
-                matching_interests.append(interest.activity_type)
-                
-                # Add bonus points based on experience level match
-                if interest.experience_level == 'beginner' and location.difficulty <= 2:
-                    interest_score += 1
-                elif interest.experience_level == 'intermediate' and 2 < location.difficulty <= 4:
-                    interest_score += 1
-                elif interest.experience_level == 'advanced' and location.difficulty > 4:
-                    interest_score += 1
-        
-        suggestions.append({
-            'id': location.id,
-            'name': location.name,
-            'description': location.description,
-            'category': location.category,
-            'difficulty': location.difficulty,
-            'average_rating': location.average_rating,
-            'latitude': location.latitude,
-            'longitude': location.longitude,
-            'interest_score': interest_score,
-            'matching_interests': matching_interests
-        })
-    
-    # Sort suggestions by interest score first, then rating
-    suggestions.sort(key=lambda x: (-x['interest_score'], -x['average_rating']))
-    
-    return suggestions
 
 def generate_packing_list(adventure_type: str, duration: int, season: str) -> Dict:
     base_items = {
@@ -544,6 +780,13 @@ def send_buddy_request(buddy_id):
 from flask import Markup, jsonify
 from sqlalchemy import func
 
+def get_difficulty_levels_for_form():
+    return [
+        {'value': 1, 'name': 'Easy'},
+        {'value': 2, 'name': 'Moderate'},
+        {'value': 3, 'name': 'Hard'}
+    ]
+
 @app.route('/submit-spot', methods=['GET', 'POST'])
 @login_required
 def submit_spot():
@@ -567,7 +810,7 @@ def submit_spot():
             return redirect(url_for('submit_spot'))
         else:
             flash('Please provide both spot name and location.')
-    return render_template('submit_spot.html')
+    return render_template('submit_spot.html') # Removed difficulty_levels
 
 @app.route('/user-spots')
 def user_spots():
@@ -619,18 +862,6 @@ def mark_notification_read(notification_id):
 def notifications():
     notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
     return render_template('notifications.html', notifications=notifications)
-
-@app.route('/adventure-suggestions', methods=['GET'])
-@login_required
-def adventure_suggestions():
-    suggestions = get_adventure_suggestions(session['user_id'])
-    return render_template('adventure_suggestions.html', suggestions=suggestions)
-
-@app.route('/api/suggestions', methods=['GET'])
-@login_required
-def get_suggestions_api():
-    suggestions = get_adventure_suggestions(session['user_id'])
-    return jsonify(suggestions)
 
 @app.route('/itinerary/<int:trip_id>', methods=['GET'])
 @login_required

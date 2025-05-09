@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Nearby Events & Activities{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="d-flex justify-content-between align-items-center page-header mb-4">
+        <div>
+            <h1><i class="fas fa-calendar-alt me-2"></i>Nearby Events & Activities</h1>
+            <p class="lead">Discover exciting events and activities happening near you, or suggest your own!</p>
+        </div>
+        <a href="{{ url_for('suggest_event') }}" class="btn btn-success">
+            <i class="fas fa-plus-circle me-1"></i> Suggest an Event
+        </a>
+    </div>
+
+    <!-- Section for Community-Suggested Events -->
+    <h2 class="mb-3"><i class="fas fa-users me-2"></i>Community-Suggested Events</h2>
+    <div id="community-events-container" class="row mb-4">
+        {% if community_events %}
+            {% for event in community_events %}
+            <div class="col-md-6 col-lg-4 mb-4 event-card-item">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">{{ event.name }}</h5>
+                        <p class="card-text text-muted small">
+                            <i class="fas fa-calendar-day me-1"></i> {{ event.event_date.strftime('%Y-%m-%d') }}
+                            {% if event.event_time %}at {{ event.event_time.strftime('%H:%M') }}{% endif %}
+                        </p>
+                        <p class="card-text text-muted small mb-2">
+                            <i class="fas fa-map-marker-alt me-1"></i> {{ event.location_text }}
+                        </p>
+                        {% if event.description %}
+                            <p class="card-text flex-grow-1">{{ event.description | truncate(120) }}</p>
+                        {% else %}
+                            <p class="card-text flex-grow-1 fst-italic">No description provided.</p>
+                        {% endif %}
+                        {% if event.category %}
+                            <span class="badge bg-info align-self-start mb-2">{{ event.category }}</span>
+                        {% endif %}
+                        <p class="card-text small text-muted mt-auto">
+                            Suggested by: {{ event.suggester.username if event.suggester else 'Unknown' }}
+                        </p>
+                        {# Add a 'View Details' or 'Join' button here in Phase 2 #}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info" role="alert">
+                    No community-suggested events found for the current filters. Be the first to <a href="{{ url_for('suggest_event') }}" class="alert-link">suggest one</a> or try different filters!
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+
+<!-- Include Font Awesome for icons if not already in base.html -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/js/all.min.js"></script>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{# The JavaScript for client-side filtering has been removed as the filter UI elements were removed. #}
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}District Adventure & Difficulty Search{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Search Adventures & Difficulties by District</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('district_search') }}" class="mb-4">
+        <div class="mb-3">
+            <label for="district_name" class="form-label">Select District Name:</label>
+            <select class="form-select" id="district_name" name="district_name" required>
+                <option value="">-- Select a District --</option>
+                {% for district_display_name in available_districts %}
+                    <option value="{{ district_display_name.lower() }}" 
+                            {% if request.form.district_name == district_display_name.lower() %}selected{% endif %}>
+                        {{ district_display_name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    {% if district_info %}
+        <h3>Results for: {{ district_info.name }}</h3>
+        
+        <h4>Potential Adventure Spots:</h4>
+        {% if district_info.spots %}
+            <ul class="list-group mb-3">
+                {% for spot in district_info.spots %}
+                    <li class="list-group-item">{{ spot }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No specific adventure spots listed for this district.</p>
+        {% endif %}
+
+        <h4>Potential Difficulties:</h4>
+        {% if district_info.difficulties %}
+            <ul class="list-group">
+                {% for difficulty in district_info.difficulties %}
+                    <li class="list-group-item">{{ difficulty }}</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No specific difficulties listed for this district.</p>
+        {% endif %}
+    {% elif request.method == 'POST' %}
+        <div class="alert alert-warning" role="alert">
+            No information found for the district: "{{ request.form.district_name }}". Please try another district name.
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

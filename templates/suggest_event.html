@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Suggest a New Event{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="page-header mb-4">
+        <h1><i class="fas fa-lightbulb me-2"></i>Suggest a New Event</h1>
+        <p class="lead">Have an idea for an event? Share it with the community!</p>
+    </div>
+
+    <form method="POST" action="{{ url_for('suggest_event') }}" id="suggestEventForm">
+        {{ form.hidden_tag() if form and form.hidden_tag }} {# For CSRF token if you use Flask-WTF #}
+        
+        <div class="mb-3">
+            <label for="name" class="form-label">Event Name <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="name" name="name" required maxlength="150">
+        </div>
+
+        <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <textarea class="form-control" id="description" name="description" rows="4"></textarea>
+        </div>
+
+        <div class="mb-3">
+            <label for="location_text" class="form-label">Location (e.g., Address, Park Name, Online) <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="location_text" name="location_text" required maxlength="250">
+        </div>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label for="event_date" class="form-label">Event Date <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" id="event_date" name="event_date" required>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label for="event_time" class="form-label">Event Time</label>
+                <input type="time" class="form-control" id="event_time" name="event_time">
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label for="category" class="form-label">Category (e.g., Hiking, Workshop, Social)</label>
+            <input type="text" class="form-control" id="category" name="category" maxlength="80">
+             <small class="form-text text-muted">Optional, but helps others find your event.</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+            <i class="fas fa-paper-plane me-1"></i> Submit Suggestion
+        </button>
+        <a href="{{ url_for('show_nearby_events') }}" class="btn btn-secondary">
+            <i class="fas fa-times me-1"></i> Cancel
+        </a>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Basic client-side validation for date: ensure it's not in the past.
+    const eventDateInput = document.getElementById('event_date');
+    if (eventDateInput) {
+        const today = new Date().toISOString().split('T')[0];
+        eventDateInput.setAttribute('min', today);
+
+        eventDateInput.addEventListener('input', function() {
+            if (eventDateInput.value < today) {
+                eventDateInput.setCustomValidity('Event date cannot be in the past.');
+            }
+            else {
+                eventDateInput.setCustomValidity('');
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

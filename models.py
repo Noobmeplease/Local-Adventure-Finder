@@ -97,7 +97,6 @@ class UserSubmittedSpot(db.Model):
     
     contributor = db.relationship('User', backref='submitted_spots')
 
-# Add Notification model
 class Notification(db.Model):
     __tablename__ = 'notifications'
     id = db.Column(db.Integer, primary_key=True)
@@ -121,3 +120,73 @@ class ItineraryItem(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     trip = db.relationship('Trip', backref=db.backref('itinerary_items', lazy=True))
+
+class Review(db.Model):
+    __tablename__ = 'reviews'
+    id = db.Column(db.Integer, primary_key=True)
+    place_name = db.Column(db.String(200), nullable=False)
+    rating = db.Column(db.Integer, nullable=False)
+    comment = db.Column(db.Text, nullable=True)
+    picture_filename = db.Column(db.String(200), nullable=True)  # Stores the filename of the uploaded picture
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='reviews')
+
+
+class UserEmergencyContact(db.Model):
+    __tablename__ = 'user_emergency_contacts'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    contact_name = db.Column(db.String(100), nullable=False)
+    phone_number = db.Column(db.String(20), nullable=False)
+    relationship = db.Column(db.String(50)) # e.g., Spouse, Parent, Friend
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('emergency_contacts', lazy=True))
+
+
+class UserMedicalReport(db.Model):
+    __tablename__ = 'user_medical_reports'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    condition_name = db.Column(db.String(150), nullable=False)
+    notes = db.Column(db.Text) # For allergies, medication, severity etc.
+    reported_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow) # Date of last update/report
+
+    user = db.relationship('User', backref=db.backref('medical_reports', lazy=True))
+
+
+class SuggestedEvent(db.Model):
+    __tablename__ = 'suggested_events'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    location_text = db.Column(db.String(250), nullable=False)  # User-entered text for location
+    event_date = db.Column(db.Date, nullable=False)
+    event_time = db.Column(db.Time, nullable=True)
+    category = db.Column(db.String(80), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    suggester = db.relationship('User', backref=db.backref('suggested_events', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<SuggestedEvent {self.name}>' 
+
+
+class UserAdventureDifficultyFeedback(db.Model):
+    __tablename__ = 'user_adventure_difficulty_feedback'
+    id = db.Column(db.Integer, primary_key=True)
+    adventure_location_id = db.Column(db.Integer, db.ForeignKey('adventure_locations.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    submitted_difficulty = db.Column(db.Integer, nullable=False)  # e.g., 1: Easy, 2: Moderate, 3: Hard
+    comment = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships to easily access related data
+    adventure_location = db.relationship('AdventureLocation', backref=db.backref('difficulty_feedbacks', lazy=True))
+    user = db.relationship('User', backref=db.backref('difficulty_feedbacks', lazy=True))
+
+    def __repr__(self):
+        return f'<UserAdventureDifficultyFeedback {self.user_id} on {self.adventure_location_id} - Difficulty: {self.submitted_difficulty}>'
