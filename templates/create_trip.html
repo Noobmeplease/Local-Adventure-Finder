@@ -24,7 +24,14 @@
                         
                         <div class="mb-3">
                             <label for="start_date" class="form-label">Start Date</label>
-                            <input type="date" class="form-control" id="start_date" name="start_date" min="{{ current_date }}" value="{{ current_date }}" required onchange="updateEndDate()">
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="start_date" 
+                                   name="start_date" 
+                                   min="{{ current_date }}"
+                                   value="{{ current_date }}" 
+                                   required 
+                                   onchange="validateAndUpdateDates(this.value)">
                         </div>
                         
                         <div class="mb-3">
@@ -61,22 +68,31 @@
 </div>
 
 <script>
-function updateEndDate() {
-    const startDate = new Date(document.getElementById('start_date').value);
+function validateAndUpdateDates(selectedDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const selected = new Date(selectedDate);
+    if (selected < today) {
+        alert('Cannot select a past date');
+        document.getElementById('start_date').value = today.toISOString().split('T')[0];
+        selected = today;
+    }
+    
     const duration = {{ selected_location.duration if selected_location and selected_location.duration else 'null' }};
     
     if (duration) {
-        const endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + duration - 1);
+        const endDate = new Date(selected);
+        endDate.setDate(selected.getDate() + duration - 1);
         document.getElementById('end_date').value = endDate.toISOString().split('T')[0];
     }
+    
+    document.getElementById('end_date').min = selected.toISOString().split('T')[0];
 }
 
-// Initial call to set correct end date
+// Initial validation when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    if ({{ 'true' if selected_location and selected_location.duration else 'false' }}) {
-        updateEndDate();
-    }
+    validateAndUpdateDates(document.getElementById('start_date').value);
 });
 </script>
 {% endblock %}
