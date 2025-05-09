@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, send_file, flash, redirect, u
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, current_user
 import os
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from typing import Dict
 from utils import login_required # Updated import
 
@@ -461,18 +461,34 @@ def get_or_create_location(location_name, adventure_type):
 def create_trip():
     if request.method == 'POST':
         try:
+            start_date = datetime.strptime(request.form['start_date'], '%Y-%m-%d').date()
+            end_date = datetime.strptime(request.form['end_date'], '%Y-%m-%d').date()
+            
+            # Validate start date is not in the past
+            if start_date < datetime.now().date():
+                flash('Start date cannot be in the past', 'danger')
+                return redirect(url_for('create_trip'))
+            
+            # Get selected duration from session
+            selected_duration = session.get('selected_location', {}).get('duration')
+            if selected_duration:
+                # Calculate the date difference
+                date_diff = (end_date - start_date).days + 1
+                if date_diff != selected_duration:
+                    flash(f'Trip duration must be {selected_duration} days as selected in budget estimation', 'danger')
+                    return redirect(url_for('create_trip'))
+
             new_trip = Trip(
                 user_id=current_user.id,
                 location_id=request.form['location_id'],
-                start_date=datetime.strptime(request.form['start_date'], '%Y-%m-%d'),
-                end_date=datetime.strptime(request.form['end_date'], '%Y-%m-%d'),
+                start_date=start_date,
+                end_date=end_date,
                 budget_estimate=float(request.form.get('budget', 0))
             )
             db.session.add(new_trip)
             db.session.commit()
             flash('Trip created successfully!', 'success')
             
-            # Clear the session data after successful trip creation
             session.pop('estimated_budget', None)
             session.pop('selected_location', None)
             
@@ -482,20 +498,27 @@ def create_trip():
             flash('Error creating trip. Please try again.', 'danger')
             return redirect(url_for('view_trips'))
     
-    # Get budget estimation from session if available
     budget_estimate = session.get('estimated_budget', None)
     selected_location = session.get('selected_location', None)
     
-    # Get all locations for the dropdown, with the selected one first if it exists
     locations = AdventureLocation.query.all()
     if selected_location:
-        locations = sorted(locations, 
-                         key=lambda x: x.id != selected_location['id'])
+        locations = sorted(locations, key=lambda x: x.id != selected_location['id'])
+    
+    # Get current date for min date attribute
+    current_date = datetime.now().date().isoformat()
+    
+    # Calculate default end date based on selected duration
+    default_end_date = None
+    if selected_location and selected_location.get('duration'):
+        default_end_date = (datetime.now().date() + timedelta(days=selected_location['duration'] - 1)).isoformat()
     
     return render_template('create_trip.html', 
                          locations=locations,
                          budget_estimate=budget_estimate,
-                         selected_location=selected_location)
+                         selected_location=selected_location,
+                         current_date=current_date,
+                         default_end_date=default_end_date)
 
 @app.route('/budget', methods=['GET', 'POST'])
 def budget():

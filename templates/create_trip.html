@@ -24,12 +24,12 @@
                         
                         <div class="mb-3">
                             <label for="start_date" class="form-label">Start Date</label>
-                            <input type="date" class="form-control" id="start_date" name="start_date" required>
+                            <input type="date" class="form-control" id="start_date" name="start_date" min="{{ current_date }}" value="{{ current_date }}" required onchange="updateEndDate()">
                         </div>
                         
                         <div class="mb-3">
                             <label for="end_date" class="form-label">End Date</label>
-                            <input type="date" class="form-control" id="end_date" name="end_date" required>
+                            <input type="date" class="form-control" id="end_date" name="end_date" min="{{ current_date }}" {% if default_end_date %}value="{{ default_end_date }}"{% endif %} required {% if selected_location and selected_location.duration %}readonly{% endif %}>
                         </div>
                         
                         <div class="mb-3">
@@ -59,4 +59,24 @@
         </div>
     </div>
 </div>
+
+<script>
+function updateEndDate() {
+    const startDate = new Date(document.getElementById('start_date').value);
+    const duration = {{ selected_location.duration if selected_location and selected_location.duration else 'null' }};
+    
+    if (duration) {
+        const endDate = new Date(startDate);
+        endDate.setDate(startDate.getDate() + duration - 1);
+        document.getElementById('end_date').value = endDate.toISOString().split('T')[0];
+    }
+}
+
+// Initial call to set correct end date
+document.addEventListener('DOMContentLoaded', function() {
+    if ({{ 'true' if selected_location and selected_location.duration else 'false' }}) {
+        updateEndDate();
+    }
+});
+</script>
 {% endblock %}
